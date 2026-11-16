@@ -4,18 +4,25 @@ import fnmatch
 import json
 import os
 import re
+import shutil
+import signal
 import subprocess
 import tempfile
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterable
+from threading import Event, Lock, Timer
+from typing import Callable, Iterable
 from urllib.parse import parse_qsl, urlsplit
 
 from . import __version__
 
 SCHEMA_VERSION = 1
 SEMVER_TAG = re.compile(r"^v?\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$")
+MAX_TAG_REFS = 100_000
+MAX_GIT_OUTPUT_BYTES = 16 * 1024 * 1024
+MAX_BASELINE_BYTES = 64 * 1024 * 1024
+GIT_TIMEOUT_SECONDS = 60
 
 
 class TagLedgerError(Exception):
@@ -47,14 +54,24 @@ def validate_source(source: str) -> str:
     if not isinstance(source, str) or not source.strip():
         raise TagLedgerError("Remote source cannot be empty.")
     try:
+        source.encode("utf-8")
+    except UnicodeEncodeError as exc:
+        raise TagLedgerError("Remote source must contain valid Unicode.") from exc
+    if any(ord(char) < 32 or 127 <= ord(char) <= 159 for char in source):
+        raise TagLedgerError("Remote source contains unsupported control characters.")
+    try:
         local_path = Path(source).expanduser()
         local_directory = local_path.is_dir()
     except (OSError, RuntimeError) as exc:
-        raise TagLedgerError("Remote source is not a valid URL or repository path.") from exc
+        raise TagLedgerError(
+            "Remote source is not a valid URL or repository path."
+        ) from exc
     is_windows_path = os.name == "nt" and bool(re.match(r"^[a-zA-Z]:", source))
     is_unc_path = source.startswith("\\\\")
     is_absolute_path = source.startswith("/")
-    is_scp_source = "://" not in source and bool(re.match(r"^(?:[^@/:\\\s]+@)?(?:\[[0-9a-fA-F:]+\]|[^/:\\\s]+):(?!:).+$", source))
+    is_scp_source = "://" not in source and bool(
+        re.match(r"^(?:[^@/:\\\s]+@)?(?:\[[0-9a-fA-F:]+\]|[^/:\\\s]+):(?!:).+$", source)
+    )
     if is_windows_path or is_unc_path or is_absolute_path or local_directory:
         return source
     try:
@@ -62,31 +79,80 @@ def validate_source(source: str) -> str:
         username = parsed.username
         password = parsed.password
     except ValueError as exc:
-        raise TagLedgerError("Remote source is not a valid URL or repository path.") from exc
+        raise TagLedgerError(
+            "Remote source is not a valid URL or repository path."
+        ) from exc
     scheme = parsed.scheme.lower()
     if not scheme and not is_scp_source:
         return source
     if is_scp_source:
-        secret_keys = {"token", "auth", "authorization", "password", "passwd", "secret", "credential", "credentials", "apikey", "key", "signature", "sig"}
-        query_keys = (re.split(r"[^a-z0-9]+", key.casefold()) for key, _ in parse_qsl(parsed.query, keep_blank_values=True))
+        secret_keys = {
+            "token",
+            "auth",
+            "authorization",
+            "password",
+            "passwd",
+            "secret",
+            "credential",
+            "credentials",
+            "apikey",
+            "key",
+            "signature",
+            "sig",
+        }
+        query_keys = (
+            re.split(r"[^a-z0-9]+", key.casefold())
+            for key, _ in parse_qsl(parsed.query, keep_blank_values=True)
+        )
         if any(secret_keys.intersection(parts) for parts in query_keys):
-            raise TagLedgerError("Credential-like source parameters are not allowed; configure Git credential helpers instead.")
+            raise TagLedgerError(
+                "Credential-like source parameters are not allowed; configure Git credential helpers instead."
+            )
         return source
     if scheme not in {"http", "https", "ssh", "git"}:
-        raise TagLedgerError("Remote source must use HTTP(S), SSH, Git protocol, or a local repository path.")
-    if password is not None or (scheme in {"http", "https", "git"} and username is not None):
-        raise TagLedgerError("Credential-bearing URLs are not allowed; configure Git credential helpers instead.")
-    secret_keys = {"token", "auth", "authorization", "password", "passwd", "secret", "credential", "credentials", "apikey", "key", "signature", "sig"}
-    query_keys = (re.split(r"[^a-z0-9]+", key.casefold()) for key, _ in parse_qsl(parsed.query, keep_blank_values=True))
+        raise TagLedgerError(
+            "Remote source must use HTTP(S), SSH, Git protocol, or a local repository path."
+        )
+    if password is not None or (
+        scheme in {"http", "https", "git"} and username is not None
+    ):
+        raise TagLedgerError(
+            "Credential-bearing URLs are not allowed; configure Git credential helpers instead."
+        )
+    secret_keys = {
+        "token",
+        "auth",
+        "authorization",
+        "password",
+        "passwd",
+        "secret",
+        "credential",
+        "credentials",
+        "apikey",
+        "key",
+        "signature",
+        "sig",
+    }
+    query_keys = (
+        re.split(r"[^a-z0-9]+", key.casefold())
+        for key, _ in parse_qsl(parsed.query, keep_blank_values=True)
+    )
     if any(secret_keys.intersection(parts) for parts in query_keys):
-        raise TagLedgerError("Credential-like URL query parameters are not allowed; configure Git credential helpers instead.")
+        raise TagLedgerError(
+            "Credential-like URL query parameters are not allowed; configure Git credential helpers instead."
+        )
     if parsed.fragment:
         raise TagLedgerError("URL fragments are not accepted as Git sources.")
     return source
 
 
 def utc_now() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return (
+        datetime.now(timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
 
 
 def parse_ls_remote(output: str) -> list[TagRef]:
@@ -106,33 +172,56 @@ def parse_ls_remote(output: str) -> list[TagRef]:
         if oid_length is None:
             oid_length = len(oid)
         elif len(oid) != oid_length:
-            raise TagLedgerError("Malformed git ls-remote output: object ID lengths differ.")
+            raise TagLedgerError(
+                "Malformed git ls-remote output: object ID lengths differ."
+            )
         if not ref.startswith("refs/tags/"):
             continue
         suffix = "^{}"
         if ref.endswith(suffix):
             name = ref[len("refs/tags/") : -len(suffix)]
             if not _valid_tag_name(name):
-                raise TagLedgerError(f"Malformed peeled tag name on git ls-remote line {number}.")
+                raise TagLedgerError(
+                    f"Malformed peeled tag name on git ls-remote line {number}."
+                )
             if name in peeled:
-                raise TagLedgerError(f"Duplicate peeled tag ref on git ls-remote line {number}.")
+                raise TagLedgerError(
+                    f"Duplicate peeled tag ref on git ls-remote line {number}."
+                )
             peeled[name] = oid.lower()
         else:
             name = ref[len("refs/tags/") :]
             if not _valid_tag_name(name):
-                raise TagLedgerError(f"Malformed tag name on git ls-remote line {number}.")
+                raise TagLedgerError(
+                    f"Malformed tag name on git ls-remote line {number}."
+                )
             if name in refs:
-                raise TagLedgerError(f"Duplicate tag ref on git ls-remote line {number}.")
+                raise TagLedgerError(
+                    f"Duplicate tag ref on git ls-remote line {number}."
+                )
+            if len(refs) >= MAX_TAG_REFS:
+                raise TagLedgerError(
+                    f"Git tag listing exceeds the {MAX_TAG_REFS} tag limit."
+                )
             refs[name] = oid.lower()
 
     orphan_peels = sorted(set(peeled) - set(refs))
     if orphan_peels:
-        raise TagLedgerError("Malformed git ls-remote output: peeled tag has no matching ref.")
+        raise TagLedgerError(
+            "Malformed git ls-remote output: peeled tag has no matching ref."
+        )
 
     result = []
     for name, oid in sorted(refs.items()):
         target = peeled.get(name, oid)
-        result.append(TagRef(name=name, object_oid=oid, target_oid=target, kind="annotated" if name in peeled else "lightweight"))
+        result.append(
+            TagRef(
+                name=name,
+                object_oid=oid,
+                target_oid=target,
+                kind="annotated" if name in peeled else "lightweight",
+            )
+        )
     return result
 
 
@@ -143,34 +232,33 @@ def fetch_remote_tags(source: str) -> list[TagRef]:
     local_query = local_path.is_dir()
     if local_query:
         command = [
-            "git", "-C", str(local_path), "for-each-ref",
-            "--format=%(refname)%09%(objectname)%09%(*objectname)", "refs/tags",
+            "git",
+            "-C",
+            str(local_path),
+            "for-each-ref",
+            "--format=%(refname)%09%(objectname)%09%(*objectname)",
+            "refs/tags",
         ]
     try:
         environment = os.environ.copy()
         # Restrict transports even if a user's Git configuration enables custom remote helpers.
         environment["GIT_ALLOW_PROTOCOL"] = "http:https:ssh:git"
         environment["GIT_PROTOCOL_FROM_USER"] = "0"
-        proc = subprocess.run(
-            command,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            check=False,
-            timeout=60,
-            env=environment,
-        )
+        returncode, stdout = _run_git_command(command, environment)
     except FileNotFoundError as exc:
         raise TagLedgerError("Git was not found on PATH.") from exc
-    except subprocess.TimeoutExpired as exc:
-        raise TagLedgerError("Remote tag query timed out after 60 seconds.") from exc
-    if proc.returncode != 0:
+    except OSError as exc:
+        raise TagLedgerError(
+            "Git could not be started or its output could not be read."
+        ) from exc
+    if returncode != 0:
         # Git's stderr can include remote URLs or credential-helper details. Keep it out of reports.
-        raise TagLedgerError(f"Git could not read tags from the configured remote (exit {proc.returncode}).")
+        raise TagLedgerError(
+            f"Git could not read tags from the configured remote (exit {returncode})."
+        )
     if local_query:
         ls_remote_lines = []
-        for number, line in enumerate(proc.stdout.splitlines(), 1):
+        for number, line in enumerate(stdout.splitlines(), 1):
             fields = line.split("\t")
             if len(fields) != 3 or not fields[0].startswith("refs/tags/"):
                 raise TagLedgerError(f"Malformed local tag listing on line {number}.")
@@ -179,23 +267,298 @@ def fetch_remote_tags(source: str) -> list[TagRef]:
             if peeled_oid:
                 ls_remote_lines.append(f"{peeled_oid}\t{ref}^{{}}")
         return parse_ls_remote("\n".join(ls_remote_lines))
-    return parse_ls_remote(proc.stdout)
+    return parse_ls_remote(stdout)
+
+
+def _run_git_command(
+    command: list[str], environment: dict[str, str]
+) -> tuple[int, str]:
+    """Read bounded Git output while enforcing a wall-clock timeout."""
+    if os.name == "nt":
+        process_group_options = {
+            "creationflags": subprocess.CREATE_NEW_PROCESS_GROUP | 0x00000004
+        }  # CREATE_SUSPENDED until the job object is assigned
+    else:
+        process_group_options = {"start_new_session": True}
+    process = subprocess.Popen(
+        command,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        env=environment,
+        **process_group_options,
+    )
+    if process.stdout is None:
+        process.kill()
+        process.wait()
+        raise TagLedgerError("Could not capture Git tag listing output.")
+
+    job_closer = _create_windows_kill_job(process)
+    if os.name == "nt" and job_closer is None:
+        process.kill()
+        process.wait()
+        process.stdout.close()
+        raise TagLedgerError("Could not establish safe Git process-tree cleanup.")
+
+    timed_out = Event()
+    completed = Event()
+    job_closer_holder = [job_closer]
+    job_lock = Lock()
+
+    def close_windows_job() -> bool:
+        with job_lock:
+            closer = job_closer_holder[0]
+            job_closer_holder[0] = None
+        if closer is None:
+            return False
+        try:
+            return closer()
+        except OSError:
+            return False
+
+    def kill_process_tree() -> None:
+        if os.name == "nt":
+            job_closed = close_windows_job()
+            taskkill = (
+                None
+                if job_closed
+                else shutil.which("taskkill.exe") or shutil.which("taskkill")
+            )
+            if taskkill is not None:
+                try:
+                    subprocess.run(
+                        [taskkill, "/PID", str(process.pid), "/T", "/F"],
+                        stdin=subprocess.DEVNULL,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        timeout=5,
+                        check=False,
+                    )
+                except (OSError, subprocess.TimeoutExpired):
+                    pass
+        else:
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except OSError:
+                pass
+        try:
+            if process.poll() is None:
+                process.kill()
+        except OSError:
+            pass
+
+    def stop_after_timeout() -> None:
+        if not completed.is_set():
+            timed_out.set()
+            kill_process_tree()
+
+    timer = Timer(GIT_TIMEOUT_SECONDS, stop_after_timeout)
+    timer.daemon = True
+    timer.start()
+    output = bytearray()
+    try:
+        while True:
+            read_size = min(65_536, MAX_GIT_OUTPUT_BYTES - len(output) + 1)
+            chunk = process.stdout.read(read_size)
+            if not chunk:
+                break
+            if len(output) + len(chunk) > MAX_GIT_OUTPUT_BYTES:
+                raise TagLedgerError(
+                    f"Git tag listing exceeds the {MAX_GIT_OUTPUT_BYTES // (1024 * 1024)} MiB output limit."
+                )
+            output.extend(chunk)
+        returncode = process.wait()
+        completed.set()
+    except BaseException:
+        kill_process_tree()
+        process.wait()
+        raise
+    finally:
+        timer.cancel()
+        close_windows_job()
+        process.stdout.close()
+
+    if timed_out.is_set():
+        raise TagLedgerError(
+            f"Remote tag query timed out after {GIT_TIMEOUT_SECONDS:g} seconds."
+        )
+    return returncode, output.decode("utf-8", errors="replace")
+
+
+def _create_windows_kill_job(
+    process: subprocess.Popen[bytes],
+) -> Callable[[], bool] | None:
+    """Attach a Windows process to a job that kills descendants when closed."""
+    if os.name != "nt":
+        return None
+
+    import ctypes
+    from ctypes import wintypes
+
+    class JobBasicLimits(ctypes.Structure):
+        _fields_ = [
+            ("PerProcessUserTimeLimit", ctypes.c_longlong),
+            ("PerJobUserTimeLimit", ctypes.c_longlong),
+            ("LimitFlags", wintypes.DWORD),
+            ("MinimumWorkingSetSize", ctypes.c_size_t),
+            ("MaximumWorkingSetSize", ctypes.c_size_t),
+            ("ActiveProcessLimit", wintypes.DWORD),
+            ("Affinity", ctypes.c_size_t),
+            ("PriorityClass", wintypes.DWORD),
+            ("SchedulingClass", wintypes.DWORD),
+        ]
+
+    class JobIoCounters(ctypes.Structure):
+        _fields_ = [
+            (field, ctypes.c_ulonglong)
+            for field in (
+                "ReadOperationCount",
+                "WriteOperationCount",
+                "OtherOperationCount",
+                "ReadTransferCount",
+                "WriteTransferCount",
+                "OtherTransferCount",
+            )
+        ]
+
+    class JobExtendedLimits(ctypes.Structure):
+        _fields_ = [
+            ("BasicLimitInformation", JobBasicLimits),
+            ("IoInfo", JobIoCounters),
+            ("ProcessMemoryLimit", ctypes.c_size_t),
+            ("JobMemoryLimit", ctypes.c_size_t),
+            ("PeakProcessMemoryUsed", ctypes.c_size_t),
+            ("PeakJobMemoryUsed", ctypes.c_size_t),
+        ]
+
+    try:
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    except OSError:
+        return None
+    kernel32.CreateJobObjectW.argtypes = [ctypes.c_void_p, wintypes.LPCWSTR]
+    kernel32.CreateJobObjectW.restype = wintypes.HANDLE
+    kernel32.SetInformationJobObject.argtypes = [
+        wintypes.HANDLE,
+        wintypes.INT,
+        ctypes.c_void_p,
+        wintypes.DWORD,
+    ]
+    kernel32.SetInformationJobObject.restype = wintypes.BOOL
+    kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    kernel32.OpenProcess.restype = wintypes.HANDLE
+    kernel32.AssignProcessToJobObject.argtypes = [wintypes.HANDLE, wintypes.HANDLE]
+    kernel32.AssignProcessToJobObject.restype = wintypes.BOOL
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel32.CloseHandle.restype = wintypes.BOOL
+    kernel32.CreateToolhelp32Snapshot.argtypes = [wintypes.DWORD, wintypes.DWORD]
+    kernel32.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
+
+    class ThreadEntry32(ctypes.Structure):
+        _fields_ = [
+            ("dwSize", wintypes.DWORD),
+            ("cntUsage", wintypes.DWORD),
+            ("th32ThreadID", wintypes.DWORD),
+            ("th32OwnerProcessID", wintypes.DWORD),
+            ("tpBasePri", wintypes.LONG),
+            ("tpDeltaPri", wintypes.LONG),
+            ("dwFlags", wintypes.DWORD),
+        ]
+
+    kernel32.Thread32First.argtypes = [
+        wintypes.HANDLE,
+        ctypes.POINTER(ThreadEntry32),
+    ]
+    kernel32.Thread32First.restype = wintypes.BOOL
+    kernel32.Thread32Next.argtypes = [
+        wintypes.HANDLE,
+        ctypes.POINTER(ThreadEntry32),
+    ]
+    kernel32.Thread32Next.restype = wintypes.BOOL
+    kernel32.OpenThread.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    kernel32.OpenThread.restype = wintypes.HANDLE
+    kernel32.ResumeThread.argtypes = [wintypes.HANDLE]
+    kernel32.ResumeThread.restype = wintypes.DWORD
+
+    job = kernel32.CreateJobObjectW(None, None)
+    if not job:
+        return None
+    limits = JobExtendedLimits()
+    limits.BasicLimitInformation.LimitFlags = 0x2000  # KILL_ON_JOB_CLOSE
+    if not kernel32.SetInformationJobObject(
+        job, 9, ctypes.byref(limits), ctypes.sizeof(limits)
+    ):
+        kernel32.CloseHandle(job)
+        return None
+
+    process_handle = kernel32.OpenProcess(0x0100 | 0x0001, False, process.pid)
+    if not process_handle:
+        kernel32.CloseHandle(job)
+        return None
+    try:
+        assigned = kernel32.AssignProcessToJobObject(job, process_handle)
+    finally:
+        kernel32.CloseHandle(process_handle)
+    if not assigned:
+        kernel32.CloseHandle(job)
+        return None
+
+    snapshot = kernel32.CreateToolhelp32Snapshot(0x00000004, 0)  # SNAPTHREAD
+    invalid_handle = ctypes.c_void_p(-1).value
+    if snapshot == invalid_handle:
+        kernel32.CloseHandle(job)
+        return None
+    resumed = False
+    try:
+        entry = ThreadEntry32()
+        entry.dwSize = ctypes.sizeof(entry)
+        has_thread = kernel32.Thread32First(snapshot, ctypes.byref(entry))
+        while has_thread:
+            if entry.th32OwnerProcessID == process.pid:
+                thread = kernel32.OpenThread(
+                    0x0002, False, entry.th32ThreadID
+                )  # THREAD_SUSPEND_RESUME
+                if thread:
+                    try:
+                        resumed = kernel32.ResumeThread(thread) != 0xFFFFFFFF
+                    finally:
+                        kernel32.CloseHandle(thread)
+                break
+            has_thread = kernel32.Thread32Next(snapshot, ctypes.byref(entry))
+    finally:
+        kernel32.CloseHandle(snapshot)
+    if not resumed:
+        kernel32.CloseHandle(job)
+        return None
+
+    return lambda: bool(kernel32.CloseHandle(job))
 
 
 def filter_tags(tags: Iterable[TagRef], patterns: list[str] | None) -> list[TagRef]:
     patterns = ["*"] if patterns is None else patterns
-    return [tag for tag in tags if any(fnmatch.fnmatchcase(tag.name, pattern) for pattern in patterns)]
+    return [
+        tag
+        for tag in tags
+        if any(fnmatch.fnmatchcase(tag.name, pattern) for pattern in patterns)
+    ]
 
 
 def tag_classification(name: str, mutable_patterns: list[str] | None = None) -> str:
-    if mutable_patterns and any(fnmatch.fnmatchcase(name, pattern) for pattern in mutable_patterns):
+    if mutable_patterns and any(
+        fnmatch.fnmatchcase(name, pattern) for pattern in mutable_patterns
+    ):
         return "mutable-alias"
     if SEMVER_TAG.fullmatch(name):
         return "version-like-fixed"
     return "unclassified"
 
 
-def make_baseline(source: str, tags: Iterable[TagRef], include: list[str] | None = None, mutable: list[str] | None = None, captured_at: str | None = None) -> dict:
+def make_baseline(
+    source: str,
+    tags: Iterable[TagRef],
+    include: list[str] | None = None,
+    mutable: list[str] | None = None,
+    captured_at: str | None = None,
+) -> dict:
     validate_source(source)
     include = ["*"] if include is None else include
     mutable = [] if mutable is None else mutable
@@ -207,51 +570,105 @@ def make_baseline(source: str, tags: Iterable[TagRef], include: list[str] | None
         "captured_at": captured_at or utc_now(),
         "include_patterns": include,
         "mutable_patterns": mutable,
-        "tags": [asdict(tag) for tag in sorted(filter_tags(tags, include), key=lambda tag: tag.name)],
+        "tags": [
+            asdict(tag)
+            for tag in sorted(filter_tags(tags, include), key=lambda tag: tag.name)
+        ],
     }
     return _validate_baseline(baseline)
 
 
 def _validate_patterns(value: object, label: str, *, allow_empty: bool) -> list[str]:
     if not isinstance(value, list) or (not allow_empty and not value):
-        expectation = "a list of non-empty strings" if allow_empty else "a non-empty list of non-empty strings"
+        expectation = (
+            "a list of non-empty strings"
+            if allow_empty
+            else "a non-empty list of non-empty strings"
+        )
         raise TagLedgerError(f"Baseline {label} must be {expectation}.")
     if any(not isinstance(item, str) or not item.strip() for item in value):
         raise TagLedgerError(f"Baseline {label} must contain only non-empty strings.")
+    try:
+        for item in value:
+            item.encode("utf-8")
+    except UnicodeEncodeError as exc:
+        raise TagLedgerError(f"Baseline {label} must contain valid Unicode.") from exc
     return value
 
 
 def _valid_tag_name(name: str) -> bool:
+    try:
+        name.encode("utf-8")
+    except UnicodeEncodeError:
+        return False
     forbidden = set(" ~^:?*[\\\\")
-    if not name or name == "@" or name.startswith("/") or name.endswith(("/", ".")) or ".." in name or "//" in name or "@{" in name:
+    if (
+        not name
+        or name == "@"
+        or name.startswith("/")
+        or name.endswith(("/", "."))
+        or ".." in name
+        or "//" in name
+        or "@{" in name
+    ):
         return False
     if any(ord(char) < 32 or ord(char) == 127 or char in forbidden for char in name):
         return False
-    return all(component and not component.startswith(".") and not component.endswith(".lock") for component in name.split("/"))
+    return all(
+        component and not component.startswith(".") and not component.endswith(".lock")
+        for component in name.split("/")
+    )
 
 
 def _validate_baseline(data: object) -> dict:
-    required = {"schema_version", "source", "captured_at", "include_patterns", "mutable_patterns", "tags"}
-    if not isinstance(data, dict) or type(data.get("schema_version")) is not int or data.get("schema_version") != SCHEMA_VERSION or set(data) != required:
+    required = {
+        "schema_version",
+        "source",
+        "captured_at",
+        "include_patterns",
+        "mutable_patterns",
+        "tags",
+    }
+    if (
+        not isinstance(data, dict)
+        or type(data.get("schema_version")) is not int
+        or data.get("schema_version") != SCHEMA_VERSION
+        or set(data) != required
+    ):
         raise TagLedgerError("Unsupported or malformed baseline schema.")
-    if not isinstance(data.get("source"), str) or not isinstance(data.get("tags"), list):
+    if not isinstance(data.get("source"), str) or not isinstance(
+        data.get("tags"), list
+    ):
         raise TagLedgerError("Baseline must contain a source and a tags list.")
+    if len(data["tags"]) > MAX_TAG_REFS:
+        raise TagLedgerError(f"Baseline exceeds the {MAX_TAG_REFS} tag limit.")
     validate_source(data["source"])
     timestamp = data.get("captured_at")
     if not isinstance(timestamp, str):
-        raise TagLedgerError("Baseline captured_at must be a timezone-aware ISO 8601 timestamp.")
+        raise TagLedgerError(
+            "Baseline captured_at must be a timezone-aware ISO 8601 timestamp."
+        )
     try:
         parsed_time = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
     except ValueError as exc:
-        raise TagLedgerError("Baseline captured_at must be a timezone-aware ISO 8601 timestamp.") from exc
+        raise TagLedgerError(
+            "Baseline captured_at must be a timezone-aware ISO 8601 timestamp."
+        ) from exc
     if parsed_time.tzinfo is None or parsed_time.utcoffset() is None:
-        raise TagLedgerError("Baseline captured_at must be a timezone-aware ISO 8601 timestamp.")
+        raise TagLedgerError(
+            "Baseline captured_at must be a timezone-aware ISO 8601 timestamp."
+        )
     _validate_patterns(data["include_patterns"], "include_patterns", allow_empty=False)
     _validate_patterns(data["mutable_patterns"], "mutable_patterns", allow_empty=True)
     names: set[str] = set()
     oid_length: int | None = None
     for row in data["tags"]:
-        if not isinstance(row, dict) or set(row) != {"name", "object_oid", "target_oid", "kind"}:
+        if not isinstance(row, dict) or set(row) != {
+            "name",
+            "object_oid",
+            "target_oid",
+            "kind",
+        }:
             raise TagLedgerError("Baseline contains a malformed tag entry.")
         name = row["name"]
         if not isinstance(name, str) or not _valid_tag_name(name):
@@ -259,24 +676,37 @@ def _validate_baseline(data: object) -> dict:
         if name in names:
             raise TagLedgerError("Baseline contains duplicate tag names.")
         names.add(name)
-        if not isinstance(row["kind"], str) or row["kind"] not in {"annotated", "lightweight"}:
+        if not isinstance(row["kind"], str) or row["kind"] not in {
+            "annotated",
+            "lightweight",
+        }:
             raise TagLedgerError("Baseline contains an invalid tag kind.")
         object_oid = row["object_oid"]
         target_oid = row["target_oid"]
         if not isinstance(object_oid, str) or not isinstance(target_oid, str):
             raise TagLedgerError("Baseline contains a malformed object ID.")
-        if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", object_oid) or not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", target_oid):
+        if not re.fullmatch(
+            r"[0-9a-f]{40}|[0-9a-f]{64}", object_oid
+        ) or not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", target_oid):
             raise TagLedgerError("Baseline contains a malformed object ID.")
         if len(object_oid) != len(target_oid):
-            raise TagLedgerError("Baseline tag object IDs use inconsistent hash lengths.")
+            raise TagLedgerError(
+                "Baseline tag object IDs use inconsistent hash lengths."
+            )
         if oid_length is None:
             oid_length = len(object_oid)
         elif len(object_oid) != oid_length:
-            raise TagLedgerError("Baseline tag object IDs use inconsistent hash lengths.")
+            raise TagLedgerError(
+                "Baseline tag object IDs use inconsistent hash lengths."
+            )
         if row["kind"] == "lightweight" and object_oid != target_oid:
-            raise TagLedgerError("Baseline lightweight tag object and target IDs must match.")
+            raise TagLedgerError(
+                "Baseline lightweight tag object and target IDs must match."
+            )
         if row["kind"] == "annotated" and object_oid == target_oid:
-            raise TagLedgerError("Baseline annotated tag object and target IDs must differ.")
+            raise TagLedgerError(
+                "Baseline annotated tag object and target IDs must differ."
+            )
     return data
 
 
@@ -292,10 +722,25 @@ def _unique_json_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
 def load_baseline(path: str | Path) -> dict:
     target = Path(path)
     try:
-        data = json.loads(target.read_text(encoding="utf-8"), object_pairs_hook=_unique_json_object)
+        if not target.exists():
+            raise TagLedgerError(f"Baseline file does not exist: {target}")
+        if not target.is_file():
+            raise TagLedgerError(f"Baseline path is not a regular file: {target}")
+        with target.open("rb") as stream:
+            encoded = stream.read(MAX_BASELINE_BYTES + 1)
     except FileNotFoundError as exc:
         raise TagLedgerError(f"Baseline file does not exist: {target}") from exc
-    except (UnicodeError, json.JSONDecodeError) as exc:
+    except OSError as exc:
+        raise TagLedgerError("Could not read baseline file.") from exc
+    if len(encoded) > MAX_BASELINE_BYTES:
+        raise TagLedgerError(
+            f"Baseline file exceeds the {MAX_BASELINE_BYTES}-byte input limit."
+        )
+    try:
+        data = json.loads(
+            encoded.decode("utf-8"), object_pairs_hook=_unique_json_object
+        )
+    except (UnicodeError, ValueError, RecursionError) as exc:
         raise TagLedgerError(f"Baseline is not valid UTF-8 JSON: {target}") from exc
     return _validate_baseline(data)
 
@@ -305,9 +750,15 @@ def write_baseline(path: str | Path, baseline: dict) -> None:
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     body = json.dumps(baseline, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+    if len(body.encode("utf-8")) > MAX_BASELINE_BYTES:
+        raise TagLedgerError(
+            f"Baseline file exceeds the {MAX_BASELINE_BYTES}-byte input limit."
+        )
     temporary_name = None
     try:
-        descriptor, temporary_name = tempfile.mkstemp(prefix=f".{target.name}.", suffix=".tmp", dir=target.parent)
+        descriptor, temporary_name = tempfile.mkstemp(
+            prefix=f".{target.name}.", suffix=".tmp", dir=target.parent
+        )
         with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as stream:
             stream.write(body)
             stream.flush()
@@ -322,7 +773,9 @@ def write_baseline(path: str | Path, baseline: dict) -> None:
                 pass
 
 
-def compare_baseline(baseline: dict, current: Iterable[TagRef], checked_at: str | None = None) -> dict:
+def compare_baseline(
+    baseline: dict, current: Iterable[TagRef], checked_at: str | None = None
+) -> dict:
     _validate_baseline(baseline)
     old_rows = {row["name"]: row for row in baseline["tags"]}
     selected = filter_tags(current, baseline.get("include_patterns", ["*"]))
@@ -335,9 +788,17 @@ def compare_baseline(baseline: dict, current: Iterable[TagRef], checked_at: str 
         if classification == "mutable-alias":
             severity = "warning"
         elif classification == "version-like-fixed":
-            severity = "error" if kind in {"deleted", "target-moved", "tag-object-changed"} else "info"
+            severity = (
+                "error"
+                if kind in {"deleted", "target-moved", "tag-object-changed"}
+                else "info"
+            )
         else:
-            severity = "warning" if kind in {"deleted", "target-moved", "tag-object-changed"} else "info"
+            severity = (
+                "warning"
+                if kind in {"deleted", "target-moved", "tag-object-changed"}
+                else "info"
+            )
         return Drift(
             tag=name,
             change=kind,
@@ -377,7 +838,11 @@ def compare_baseline(baseline: dict, current: Iterable[TagRef], checked_at: str 
 
 
 def report_exit_code(report: dict) -> int:
-    return 1 if report["summary"]["error_count"] or report["summary"]["warning_count"] else 0
+    return (
+        1
+        if report["summary"]["error_count"] or report["summary"]["warning_count"]
+        else 0
+    )
 
 
 def render_sarif(report: dict) -> dict:
@@ -393,8 +858,12 @@ def render_sarif(report: dict) -> dict:
         results.append(
             {
                 "ruleId": rule_id,
-                "level": {"error": "error", "warning": "warning", "info": "note"}[change["severity"]],
-                "message": {"text": f"Tag '{change['tag']}' {change['change']} ({change['classification']})."},
+                "level": {"error": "error", "warning": "warning", "info": "note"}[
+                    change["severity"]
+                ],
+                "message": {
+                    "text": f"Tag '{change['tag']}' {change['change']} ({change['classification']})."
+                },
                 "properties": {
                     "tag": change["tag"],
                     "oldObjectOid": change["old_object_oid"],
@@ -405,7 +874,13 @@ def render_sarif(report: dict) -> dict:
             }
         )
     run = {
-        "tool": {"driver": {"name": "TagLedger", "version": __version__, "rules": [{"id": key} for key in sorted(set(rule_ids.values()))]}},
+        "tool": {
+            "driver": {
+                "name": "TagLedger",
+                "version": __version__,
+                "rules": [{"id": key} for key in sorted(set(rule_ids.values()))],
+            }
+        },
         "results": results,
         "properties": {
             "source": report["source"],
@@ -426,20 +901,32 @@ def render_html(report: dict) -> str:
     rows = []
     for change in report["changes"]:
         rows.append(
-            "<tr data-severity=\"{severity}\"><td><span class=\"pill {severity}\">{severity}</span></td>"
+            '<tr data-severity="{severity}"><td><span class="pill {severity}">{severity}</span></td>'
             "<td><code>{tag}</code><small>{classification}</small></td><td>{kind}</td>"
-            "<td><code>{old}</code></td><td><code>{new}</code></td></tr>".format(
+            "<td><code>{old_object}</code></td><td><code>{new_object}</code></td>"
+            "<td><code>{old_target}</code></td><td><code>{new_target}</code></td></tr>".format(
                 severity=html.escape(change["severity"]),
                 tag=html.escape(change["tag"]),
                 classification=html.escape(change["classification"]),
                 kind=html.escape(change["change"]),
-                old=html.escape(change["old_target_oid"] or "—"),
-                new=html.escape(change["new_target_oid"] or "—"),
+                old_object=html.escape(change["old_object_oid"] or "—"),
+                new_object=html.escape(change["new_object_oid"] or "—"),
+                old_target=html.escape(change["old_target_oid"] or "—"),
+                new_target=html.escape(change["new_target_oid"] or "—"),
             )
         )
-    table_body = "\n".join(rows) or '<tr><td colspan="5" class="empty">No tag changes found in this check.</td></tr>'
+    table_body = (
+        "\n".join(rows)
+        or '<tr><td colspan="7" class="empty">No tag changes found in this check.</td></tr>'
+    )
     summary = report["summary"]
-    severity = "error" if summary["error_count"] else "warning" if summary["warning_count"] else "clean"
+    severity = (
+        "error"
+        if summary["error_count"]
+        else "warning"
+        if summary["warning_count"]
+        else "clean"
+    )
     title = "Tag drift report"
     return f"""<!doctype html>
 <html lang="en">
@@ -465,13 +952,13 @@ footer{{margin-top:28px;padding-top:14px;border-top:1px solid var(--line);font:1
 @media(prefers-color-scheme:dark){{:root{{--ink:#e1ecea;--paper:#0c171b;--card:#142328;--muted:#a2b7b8;--line:#355057;--mint:#9ddbc3;--amber:#e9a15e;--red:#f07868;--blue:#62bac8}}th{{background:#203238}}}}
 @media(prefers-reduced-motion:reduce){{*,*::before,*::after{{scroll-behavior:auto!important;transition:none!important}}}}
 </style></head>
-<body><main class="shell"><header><div class="brand">TagLedger / reference audit</div><div class="stamp">CHECKED {html.escape(report['checked_at'])}</div></header>
+<body><main class="shell"><header><div class="brand">TagLedger / reference audit</div><div class="stamp">CHECKED {html.escape(report["checked_at"])}</div></header>
 <h1>History leaves<br>fingerprints.</h1><p class="lede">A read-only comparison of the tag refs visible now against the baseline you recorded. This report identifies drift; it cannot tell which revision is authoritative.</p>
-<section class="hero"><div class="signal"><div class="eyebrow">{severity.upper()} · SNAPSHOT COMPARISON</div><h2>{summary['change_count']} tag changes</h2><p>{summary['tag_count']} tags visible in this check · the baseline remains untouched.</p></div>
-<div class="metrics"><div class="metric"><strong>{summary['error_count']}</strong><span>fixed-version findings</span></div><div class="metric"><strong>{summary['warning_count']}</strong><span>review findings</span></div><div class="metric"><strong>{summary['info_count']}</strong><span>new refs</span></div><div class="metric"><strong>{summary['tag_count']}</strong><span>current refs</span></div></div></section>
-<dl class="meta"><dt>Remote</dt><dd>{html.escape(report['source'])}</dd><dt>Baseline</dt><dd>{html.escape(report.get('baseline_captured_at') or 'unknown')}</dd><dt>Current check</dt><dd>{html.escape(report['checked_at'])}</dd></dl>
+<section class="hero"><div class="signal"><div class="eyebrow">{severity.upper()} · SNAPSHOT COMPARISON</div><h2>{summary["change_count"]} tag changes</h2><p>{summary["tag_count"]} tags visible in this check · the baseline remains untouched.</p></div>
+<div class="metrics"><div class="metric"><strong>{summary["error_count"]}</strong><span>fixed-version findings</span></div><div class="metric"><strong>{summary["warning_count"]}</strong><span>review findings</span></div><div class="metric"><strong>{summary["info_count"]}</strong><span>new refs</span></div><div class="metric"><strong>{summary["tag_count"]}</strong><span>current refs</span></div></div></section>
+<dl class="meta"><dt>Remote</dt><dd>{html.escape(report["source"])}</dd><dt>Baseline</dt><dd>{html.escape(report.get("baseline_captured_at") or "unknown")}</dd><dt>Current check</dt><dd>{html.escape(report["checked_at"])}</dd></dl>
 <div class="section-head"><h2 class="section-title">Tag ledger</h2><label>Filter by name, change or severity <input id="filter" type="search" placeholder="e.g. v2.4.1" aria-label="Filter tag changes"></label></div>
-<div class="table-wrap"><table><thead><tr><th>Level</th><th>Tag</th><th>Change</th><th>Previous target</th><th>Current target</th></tr></thead><tbody id="rows">{table_body}</tbody></table></div>
+<div class="table-wrap"><table><caption class="sr-only">Tag object and target identities by tag</caption><thead><tr><th scope="col">Level</th><th scope="col">Tag</th><th scope="col">Change</th><th scope="col">Previous tag object</th><th scope="col">Current tag object</th><th scope="col">Previous target</th><th scope="col">Current target</th></tr></thead><tbody id="rows">{table_body}</tbody></table></div>
 <footer><span>TagLedger · local report · no remote changes made</span><span>Object IDs are evidence, not a signature.</span></footer></main>
 <script>const input=document.getElementById('filter');input.addEventListener('input',()=>{{const q=input.value.toLowerCase();document.querySelectorAll('#rows tr').forEach(row=>row.hidden=!row.textContent.toLowerCase().includes(q));}});</script>
 </body></html>"""

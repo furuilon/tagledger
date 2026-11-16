@@ -24,6 +24,8 @@ It is a local CLI. Remote checks read tag refs only. TagLedger does not checkout
 | Package version | 0.1.0 development snapshot; not published to PyPI |
 | License | MIT; see [LICENSE](LICENSE) |
 
+Source tests, the module CLI and Ruff checks have passed locally on Windows build 26200, Python 3.11.0 and Git 2.54.0; this does not verify a built wheel installation. Python 3.12–3.14, macOS and the declared Git 2.30 minimum remain unverified.
+
 ## Install
 
 Requirements: Python 3.11+ and Git 2.30+.
@@ -68,7 +70,7 @@ Remote sources are limited to HTTP, HTTPS, SSH, Git transport, and SSH scp-style
 
 The `git://` transport has no transport encryption or server authentication. Prefer HTTPS or SSH, and use `git://` only on a trusted network.
 
-Do not put tokens or passwords in a source URL. TagLedger rejects HTTP(S) URLs with embedded usernames/passwords and credential-like query parameters so they cannot be copied into a committed baseline or report. SSH/scp usernames remain part of the stored source identifier and are not treated as secrets by the validator; never place tokens or passwords there. Use Git Credential Manager, another configured credential helper, or an SSH agent/key instead.
+Do not put tokens or passwords in a source URL. TagLedger rejects HTTP(S) URLs with embedded usernames/passwords and heuristically rejects common credential-like query parameter names. This is not a general secret detector and cannot recognize every vendor-specific field. SSH/scp usernames remain part of the stored source identifier and are not treated as secrets by the validator; never place tokens or passwords there. Use Git Credential Manager, another configured credential helper, or an SSH agent/key instead.
 
 ## What the report says
 
@@ -80,9 +82,9 @@ Do not put tokens or passwords in a source URL. TagLedger rejects HTTP(S) URLs w
 
 Reports contain tag names, source identifier, timestamps and OIDs. They never include Git stderr or credential-helper output. HTML is self-contained and escapes tag names and source values.
 
-Baselines and reports retain the source identifier. Absolute local paths can expose a Windows username or directory structure, and remote addresses can reveal private repository names. Relative local paths resolve from the working directory used to run the command. Review the source value before committing a baseline or sharing a report. Never put credentials in a source URL.
+Baselines store the source identifier, tag names and OIDs, plus custom `--include` and `--mutable` globs. Reports may also contain the source and changed tag names/OIDs. These values can expose a Windows username, directory structure, private repository name or internal naming convention. Relative local paths resolve from the working directory used to run the command. Review these fields before committing a baseline or sharing a report. Never put credentials in a source URL.
 
-Exit codes: `0` clean; `1` drift or review finding; `2` input, Git, or report-write error.
+Exit codes: `0` no error- or warning-level findings (an informational new tag may still be present); `1` fixed-version drift or a review warning; `2` input, Git, or report-write error.
 
 ## Baseline updates
 
@@ -97,6 +99,7 @@ tagledger advance .tagledger/repository.json --yes --accept-changes
 ## Limits
 
 - Git tag names are not inherently immutable. The baseline records what you observed; it does not establish that this observation was trustworthy.
+- To bound memory and runtime for unusually large inputs, Git output is limited to 16 MiB, baseline JSON to 64 MiB, and tag lists to 100,000 entries. Queries time out after 60 seconds and terminate the Git process tree. Exceeding a limit fails safely; very large tag repositories are not currently supported. Control characters in source identifiers are rejected.
 - OIDs do not validate release assets, attestations, signing identities, source provenance, or reproducible builds.
 - The tool does not inspect action workflow `uses:` references automatically. It audits one Git remote at a time.
 - A network error is an error; it is never interpreted as every tag being deleted.

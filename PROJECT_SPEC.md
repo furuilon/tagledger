@@ -6,8 +6,8 @@
 - **Target users:** Maintainers who pin releases, dependencies, GitHub Actions, or build inputs by tag and want drift visible in code review.
 - **Problem:** A tag name can be moved or deleted after a consumer has observed it; consumers may keep different local copies without a shared history.
 - **Use cases:** Establish a checked baseline for a dependency; run read-only CI drift checks; review added, missing, moved, or rewritten tags before explicitly advancing history.
-- **Existing approaches:** Manual `git ls-remote`, provider immutable release controls, and general repository monitoring. They either require manual comparison, cover only eligible releases, or center on notification rather than a committed object-level baseline.
-- **Differentiation:** Persist both the tag object OID and peeled target OID in a simple versioned JSON file. No service account or server is required.
+- **Existing approaches and prior art:** Manual `git ls-remote`, provider immutable release controls, broad monitors such as Sentinel, GitHub Actions lock tools such as SecureCI/GitHub workflow dependency lockfiles, and CertiSigma Census's local `ref-snapshot`/`tag-drift` workflow. These cover related but different scopes; tag drift detection itself is established prior art.
+- **Differentiation:** TagLedger inspects arbitrary Git remotes as well as local repositories, records both the tag object OID and peeled target OID for each visible tag, and compares that committed, versioned JSON evidence later. This is a scope and data-model distinction, not a claim of a novel detection principle. No service account or server is required.
 
 ## MVP and implementation
 
@@ -24,11 +24,11 @@
 - Verify added, deleted, moved, rewritten-object, mutable-alias, and filtered-tag cases.
 - Test malformed remote output, empty-source guard, baseline round trip, explicit advance gates, HTML escaping, and CLI exit codes.
 - CI is configured for Windows and Ubuntu with Python 3.11–3.14. These are configured targets; support is not confirmed until the hosted workflow has run successfully. The declared Git minimum (2.30) is not yet exercised by a pinned-version CI job.
-- Keep the project `PARTIAL` until core tests, local installation/entry-point checks, and required docs pass. It is now `READY FOR USER ACCEPTANCE`; the user's review against a repository they trust is a separate acceptance step.
+- Current state: `PARTIAL` until the final-tree wheel/sdist build and installed entry-point are revalidated in a healthy Python environment. The current source suite ran 43 tests: 42 passed and the physical hard-link case was skipped because the sandbox denied link creation; a mocked alias check passed. Required docs are present; a prior venv install is historical evidence only. See `RELEASE_REVIEW_2026-11-16.md`. The user's review against a repository they trust remains a separate acceptance step.
 
 ## Risks
 
-The first baseline can faithfully preserve a bad observation. Version-like tag matching is heuristic. Network/authentication behavior depends on the caller's Git configuration; `git://` transport is unauthenticated and unencrypted. Baselines and reports retain the source identifier, which can expose local usernames, directory names or private repository names. Relative local paths resolve from the command's working directory. Simultaneous baseline advances are not locked.
+The first baseline can faithfully preserve a bad observation. Version-like tag matching is heuristic. Network/authentication behavior depends on the caller's Git configuration; `git://` transport is unauthenticated and unencrypted. Baselines and reports retain the source identifier, which can expose local usernames, directory names or private repository names; baselines also retain tag names, OIDs and custom include/mutable patterns. Relative local paths resolve from the command's working directory. Baseline JSON is limited to 64 MiB and 100,000 tags. Simultaneous baseline advances are not locked.
 
 ## Maintenance
 

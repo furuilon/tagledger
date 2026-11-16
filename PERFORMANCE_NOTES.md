@@ -9,3 +9,16 @@ These measurements were recorded on 2026-11-11 in the local Windows workspace wi
 | Memory during the 100,000-row workload | Sampled RSS increase 73.0 MiB; separate `tracemalloc` Python allocation peak 73.9 MiB | RSS began with both generated input strings already in memory; sampling every 5 ms can miss short-lived peaks. `tracemalloc` materially slows execution. |
 
 The inputs were generated locally and no public host was contacted. Network latency, very large real repositories, slow disks, and sustained remote operations were not measured. See the Hidden Gems portfolio research notes for the broader cross-project benchmark context; those workspace-level records are not included in this standalone project.
+
+## 2026-11-16 reproducible parser recheck
+
+Environment: Python 3.11.0, Git 2.54.0.windows.1, Windows build 26200 / DisplayVersion 25H2. Microsoft's release table maps build 26200 to Windows 11 25H2 ([Windows release information](https://learn.microsoft.com/en-us/windows/release-health/windows11-release-information)). The sandbox did not expose hardware model or RAM through its CIM interface, so these results should not be generalized to other machines. No public host was contacted.
+
+Reproduce from the project root with `python tools/benchmark_parser.py`. The script prints the SHA-256 of the exact `src/tagledger/core.py` measured; for this run it was `809e8003bf75529e183ba27ec4bc06ed26c228408695061feeb614bbfa2c6f27`. Synthetic rows are generated as `f"{i:040x}\trefs/tags/v1.2.{i}\n"` and passed to `parse_ls_remote`. Timings include line splitting, validation, object creation and deterministic sorting; they exclude Git process startup, network, baseline writing, comparison and report rendering.
+
+| Synthetic rows | Repetitions | Median parse time | Median throughput |
+|---:|---:|---:|---:|
+| 10,000 | 7 | 52.292 ms | 191,235 rows/s |
+| 100,000 | 3 | 635.836 ms | 157,273 rows/s |
+
+These reproducible focused parser timings supersede the earlier same-day ad hoc 37.241 ms / 401.330 ms measurements, which used a different harness and were not tied to a source hash. They are not directly comparable to the earlier 100,000-row parse/baseline/compare measurement above. Current guards cap Git stdout at 16 MiB, baseline JSON at 64 MiB and distinct tags at 100,000; the query timeout remains 60 seconds. The 100,000-row run exercises the maximum distinct-tag count for the parser, but no sustained memory, network, end-to-end report, or cross-machine benchmark was run in this recheck.

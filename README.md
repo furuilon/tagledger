@@ -24,6 +24,8 @@ English version：[README.en.md](README.en.md) · [项目规格](PROJECT_SPEC.md
 | 包版本 | 0.1.0 开发快照；尚无 PyPI 发布 |
 | 许可证 | MIT；见 [LICENSE](LICENSE) |
 
+本机已通过源码测试、模块 CLI 与 Ruff 的环境为 Windows build 26200、Python 3.11.0、Git 2.54.0；这不代表 wheel 安装已验证。Python 3.12–3.14、macOS 和声明的 Git 2.30 最低版均未验证。
+
 ## 安装
 
 需要 Python 3.11+ 和 Git 2.30+。
@@ -31,6 +33,13 @@ English version：[README.en.md](README.en.md) · [项目规格](PROJECT_SPEC.md
 ```powershell
 python -m pip install .
 tagledger --version
+```
+
+在源码 checkout 中不安装也可运行 CLI 帮助：
+
+```powershell
+$env:PYTHONPATH = "src"
+python -m tagledger.cli --help
 ```
 
 ## 使用
@@ -61,7 +70,7 @@ tagledger verify .tagledger/repository.json `
 
 `git://` 没有传输加密或服务器身份认证，建议优先使用 HTTPS 或 SSH；仅在可信网络上使用 `git://`。
 
-不要把 token 或密码写进 source URL。为避免凭据进入基线或报告，TagLedger 会拒绝带内嵌用户名/密码的 HTTP(S) URL 和带凭据类查询参数的 URL。SSH/scp 用户名会原样保存在 source 标识中，校验器不会把它识别为秘密，因此也不要把 token 或密码放在用户名字段。请改用 Git Credential Manager、其他 credential helper，或 SSH agent/key。
+不要把 token 或密码写进 source URL。TagLedger 会拒绝带内嵌用户名/密码的 HTTP(S) URL，并按常见凭据字段名启发式拒绝查询参数；这不是通用凭据扫描器，不能识别所有厂商自定义字段。SSH/scp 用户名会原样保存在 source 标识中，校验器不会把它识别为秘密，因此也不要把 token 或密码放在用户名字段。请改用 Git Credential Manager、其他 credential helper，或 SSH agent/key。
 
 ## 报告变化类型
 
@@ -73,9 +82,9 @@ tagledger verify .tagledger/repository.json `
 
 报告只包含 tag 名、源标识、时间戳和对象 ID，不输出 Git 错误详情或凭据 helper 输出。HTML 是独立文件，并对 tag 名与 source 做 HTML 转义。
 
-基线和报告会保留 source 标识。绝对本地路径可能暴露 Windows 用户名或目录结构，远端地址也可能泄露私有仓库名称；相对本地路径则相对于运行命令时的当前目录解析。提交基线或分享报告前，请检查其中的 source。不要把凭据放入 source URL。
+基线会保存 source 标识、tag 名与 OID，以及 `--include`/`--mutable` 的自定义 glob；报告也可能包含 source 和变化的 tag 名/OID。这些内容可能暴露 Windows 用户名、目录结构、私有仓库名或内部命名习惯。相对本地路径相对于运行命令时的当前目录解析。提交基线或分享报告前，请逐项检查这些字段。不要把凭据放入 source URL。
 
-退出码：`0` 无漂移；`1` 有漂移或待复核项；`2` 输入、Git 或报告写入错误。
+退出码：`0` 没有错误级或警告级发现（可包含仅提示级的新 tag）；`1` 存在固定版本漂移或需要复核的警告；`2` 输入、Git 或报告写入错误。
 
 ## 更新基线
 
@@ -90,6 +99,7 @@ tagledger advance .tagledger/repository.json --yes --accept-changes
 ## 边界
 
 - Git tag 名称本身没有不可变保证；基线只记录观察结果，不能证明首次记录可信。
+- 为限制异常或超大输入的内存和运行时间，Git 输出最多读取 16 MiB，基线 JSON 不超过 64 MiB，tag 列表最多 100,000 项；查询 60 秒超时后会终止 Git 进程树。超过限制会安全失败；当前不适合超大 tag 仓库。source 中的控制字符会被拒绝。
 - 对象 ID 不验证 release 附件、attestation、签名身份、构建来源或可复现构建。
 - 工具不会自动扫描 GitHub Actions 的 `uses:`；一次检查只针对一个远端仓库。
 - 网络错误会作为错误返回，不会被误报为所有 tag 已删除。
