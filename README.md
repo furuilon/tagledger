@@ -1,6 +1,6 @@
 # TagLedger
 
-<p align="center"><img src="assets/tagledger-icon.svg" alt="TagLedger 自制图标" width="112"></p>
+<p align="center"><img src="assets/tagledger-icon.svg" alt="TagLedger 项目图标" width="112"></p>
 
 ![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB) ![Git 2.30+](https://img.shields.io/badge/Git-2.30%2B-F05032) ![MIT](https://img.shields.io/badge/License-MIT-green) ![无 Python 运行时依赖](https://img.shields.io/badge/runtime%20dependencies-none-brightgreen)
 
@@ -20,7 +20,7 @@ English version：[README.en.md](README.en.md) · [项目规格](PROJECT_SPEC.md
 | Git | 最低版本声明为 2.30；CI 尚未固定并验证这个最低版本 |
 | 运行时 | Python 标准库与系统 Git；无第三方 Python 运行时依赖 |
 | 构建 | setuptools 77.0.3+（仅构建时需要） |
-| CI 目标 | GitHub Actions 的 Ubuntu/Windows 最新镜像 × Python 3.11、3.12、3.13、3.14；首次托管运行完成前不代表矩阵已通过 |
+| CI 目标 | GitHub Actions 的 Ubuntu/macOS/Windows 最新镜像 × Python 3.11、3.12、3.13、3.14；首次托管运行完成前不代表矩阵已通过 |
 | 包版本 | 0.1.0 开发快照；尚无 PyPI 发布 |
 | 许可证 | MIT；见 [LICENSE](LICENSE) |
 
@@ -88,7 +88,7 @@ tagledger verify .tagledger/repository.json `
 
 ## 更新基线
 
-`verify` 不会写基线；如果报告路径指向基线本身或多个报告路径相互冲突，程序会拒绝写入。阅读报告后，可把新基线按正常代码评审流程提交；也可以明确执行：
+`verify` 不会写基线；如果报告路径指向基线、多个报告路径冲突或目标位于 Git 管理目录，程序会拒绝写入。基线和报告以同目录临时文件原子替换；阅读报告后，可把新基线按正常代码评审流程提交；也可以明确执行：
 
 ```powershell
 tagledger advance .tagledger/repository.json --yes --accept-changes

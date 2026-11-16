@@ -17,6 +17,7 @@ from tagledger.core import (
     TagRef,
     _run_git_command,
     compare_baseline,
+    ensure_outside_git_metadata,
     fetch_remote_tags,
     load_baseline,
     make_baseline,
@@ -237,10 +238,20 @@ class ParserTests(unittest.TestCase):
             path = Path(temporary) / "oversized.json"
             with (
                 patch("tagledger.core.MAX_BASELINE_BYTES", 8),
-                self.assertRaisesRegex(TagLedgerError, "byte input limit"),
+                self.assertRaisesRegex(TagLedgerError, "size limit"),
             ):
                 write_baseline(path, baseline)
             self.assertFalse(path.exists())
+
+    def test_output_guard_rejects_linked_worktree_admin_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            git_dir = Path(temporary) / "external-admin" / "worktrees" / "linked"
+            git_dir.mkdir(parents=True)
+            (git_dir / "gitdir").write_text("../worktree/.git\n", encoding="utf-8")
+            (git_dir / "commondir").write_text("../..\n", encoding="utf-8")
+            output = git_dir / "refs" / "tags" / "v1.0.0"
+            with self.assertRaisesRegex(TagLedgerError, "inside Git metadata"):
+                ensure_outside_git_metadata(output)
 
     def test_load_baseline_rejects_excessive_tag_count(self) -> None:
         baseline = make_baseline(
@@ -748,6 +759,71 @@ class GitIntegrationTests(unittest.TestCase):
                     json_path=str(self.root / "report.out"),
                 )
             )
+
+    def test_snapshot_and_verify_refuse_git_metadata_output_paths(self) -> None:
+        from argparse import Namespace
+        from tagledger.cli import run
+
+        ref_path = self.remote / "refs" / "tags" / "v1.0.0"
+        self.git("update-ref", "refs/tags/v1.0.0", self.commit1, cwd=self.remote)
+        original_ref = ref_path.read_bytes()
+        snapshot_args = Namespace(
+            command="snapshot",
+            source=str(self.remote),
+            output=str(ref_path),
+            include=None,
+            mutable=None,
+            allow_empty=False,
+        )
+        with (
+            patch("tagledger.cli.fetch_remote_tags") as fetch_remote,
+            self.assertRaisesRegex(TagLedgerError, "inside Git metadata"),
+        ):
+            run(snapshot_args)
+        fetch_remote.assert_not_called()
+        self.assertEqual(ref_path.read_bytes(), original_ref)
+
+        baseline_path = self.root / "safe-baseline.json"
+        write_baseline(
+            baseline_path,
+            make_baseline(str(self.remote), fetch_remote_tags(str(self.remote))),
+        )
+        verify_args = Namespace(
+            command="verify",
+            baseline=str(baseline_path),
+            source=None,
+            html=None,
+            sarif=None,
+            json_path=str(ref_path),
+        )
+        with self.assertRaisesRegex(TagLedgerError, "inside Git metadata"):
+            run(verify_args)
+        self.assertEqual(ref_path.read_bytes(), original_ref)
+
+    def test_output_guard_rejects_real_linked_worktree_admin_metadata(self) -> None:
+        repository = self.root / "worktree-source"
+        linked_worktree = self.root / "linked-worktree"
+        repository.mkdir()
+        self.git("init", str(repository))
+        (repository / "tracked.txt").write_text("fixture\n", encoding="utf-8")
+        self.git("add", "tracked.txt", cwd=repository)
+        self.git(
+            "-c",
+            "user.name=TagLedger Test",
+            "-c",
+            "user.email=tagledger@example.invalid",
+            "commit",
+            "-m",
+            "fixture",
+            cwd=repository,
+        )
+        self.git("worktree", "add", str(linked_worktree), "HEAD", cwd=repository)
+        admin_dir = Path(
+            self.git("rev-parse", "--absolute-git-dir", cwd=linked_worktree)
+        )
+        output = admin_dir / "refs" / "tags" / "v1.0.0"
+        with self.assertRaisesRegex(TagLedgerError, "inside Git metadata"):
+            ensure_outside_git_metadata(output)
 
     def test_cli_snapshot_verify_and_reports_are_end_to_end(self) -> None:
         from argparse import Namespace

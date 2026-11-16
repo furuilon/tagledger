@@ -1,6 +1,6 @@
 # TagLedger
 
-<p align="center"><img src="assets/tagledger-icon.svg" alt="Original TagLedger icon" width="112"></p>
+<p align="center"><img src="assets/tagledger-icon.svg" alt="TagLedger project icon" width="112"></p>
 
 ![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB) ![Git 2.30+](https://img.shields.io/badge/Git-2.30%2B-F05032) ![MIT](https://img.shields.io/badge/License-MIT-green) ![No Python runtime dependencies](https://img.shields.io/badge/runtime%20dependencies-none-brightgreen)
 
@@ -20,7 +20,7 @@ It is a local CLI. Remote checks read tag refs only. TagLedger does not checkout
 | Git | Minimum declared version is 2.30; CI does not yet pin and validate that minimum |
 | Runtime | Python standard library and the system Git executable; no third-party Python runtime dependencies |
 | Build | setuptools 77.0.3+ (build time only) |
-| CI targets | Ubuntu and Windows latest GitHub-hosted images × Python 3.11, 3.12, 3.13 and 3.14; configured targets are not passing results until hosted CI runs |
+| CI targets | Ubuntu, macOS and Windows latest GitHub-hosted images × Python 3.11, 3.12, 3.13 and 3.14; configured targets are not passing results until hosted CI runs |
 | Package version | 0.1.0 development snapshot; not published to PyPI |
 | License | MIT; see [LICENSE](LICENSE) |
 
@@ -88,7 +88,7 @@ Exit codes: `0` no error- or warning-level findings (an informational new tag ma
 
 ## Baseline updates
 
-`verify` never writes the baseline, and report paths that alias the baseline or collide with each other are rejected. After reviewing a drift report, update the baseline through the normal code-review path, or explicitly run:
+`verify` never writes the baseline. It rejects report paths that alias the baseline, collide with each other, or point inside Git administrative metadata. Baselines and reports use same-directory temporary files followed by atomic replacement. After reviewing a drift report, update the baseline through the normal code-review path, or explicitly run:
 
 ```powershell
 tagledger advance .tagledger/repository.json --yes --accept-changes

@@ -18,6 +18,7 @@ from .core import (
     render_sarif,
     report_exit_code,
     write_baseline,
+    ensure_outside_git_metadata,
 )
 
 
@@ -66,6 +67,8 @@ def _same_path(first: Path, second: Path) -> bool:
 def _ensure_report_targets(baseline: str | Path, outputs: list[str | None]) -> None:
     destinations = [Path(output) for output in outputs if output]
     baseline_path = Path(baseline)
+    for destination in destinations:
+        ensure_outside_git_metadata(destination)
     for index, destination in enumerate(destinations):
         if _same_path(destination, baseline_path):
             raise TagLedgerError("Verify report output cannot overwrite its baseline.")
@@ -74,7 +77,7 @@ def _ensure_report_targets(baseline: str | Path, outputs: list[str | None]) -> N
 
 
 def _write_report(path: str | Path, content: str) -> None:
-    destination = Path(path)
+    destination = ensure_outside_git_metadata(path)
     temporary_name: str | None = None
     try:
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -151,6 +154,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def run(args: argparse.Namespace) -> int:
     if args.command == "snapshot":
+        ensure_outside_git_metadata(args.output)
         include = _patterns(args.include)
         mutable = _patterns(args.mutable)
         tags = fetch_remote_tags(args.source)
@@ -166,6 +170,8 @@ def run(args: argparse.Namespace) -> int:
         print("Review and commit this baseline through your normal change process.")
         return 0
 
+    if args.command == "advance":
+        ensure_outside_git_metadata(args.baseline)
     baseline = load_baseline(args.baseline)
     if args.command == "verify":
         _ensure_report_targets(args.baseline, [args.html, args.sarif, args.json_path])

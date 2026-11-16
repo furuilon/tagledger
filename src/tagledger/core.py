@@ -719,6 +719,34 @@ def _unique_json_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
     return result
 
 
+def ensure_outside_git_metadata(path: str | Path) -> Path:
+    """Reject output paths that resolve inside Git administrative metadata."""
+    target = Path(path)
+    try:
+        resolved = target.resolve(strict=False)
+    except (OSError, RuntimeError) as exc:
+        raise TagLedgerError("Output path could not be checked safely.") from exc
+
+    for ancestor in (resolved, *resolved.parents):
+        if ancestor.name.casefold() == ".git":
+            raise TagLedgerError("Output path cannot be inside Git metadata.")
+        try:
+            is_bare_git_dir = (
+                (ancestor / "HEAD").is_file()
+                and (ancestor / "config").is_file()
+                and (ancestor / "objects").is_dir()
+                and (ancestor / "refs").is_dir()
+            )
+            is_linked_worktree_git_dir = (ancestor / "gitdir").is_file() and (
+                ancestor / "commondir"
+            ).is_file()
+        except OSError:
+            continue
+        if is_bare_git_dir or is_linked_worktree_git_dir:
+            raise TagLedgerError("Output path cannot be inside Git metadata.")
+    return target
+
+
 def load_baseline(path: str | Path) -> dict:
     target = Path(path)
     try:
@@ -747,12 +775,12 @@ def load_baseline(path: str | Path) -> dict:
 
 def write_baseline(path: str | Path, baseline: dict) -> None:
     _validate_baseline(baseline)
-    target = Path(path)
+    target = ensure_outside_git_metadata(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     body = json.dumps(baseline, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
     if len(body.encode("utf-8")) > MAX_BASELINE_BYTES:
         raise TagLedgerError(
-            f"Baseline file exceeds the {MAX_BASELINE_BYTES}-byte input limit."
+            f"Baseline exceeds the {MAX_BASELINE_BYTES}-byte size limit."
         )
     temporary_name = None
     try:
