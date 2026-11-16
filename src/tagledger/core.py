@@ -12,6 +12,8 @@ from pathlib import Path
 from typing import Iterable
 from urllib.parse import parse_qsl, urlsplit
 
+from . import __version__
+
 SCHEMA_VERSION = 1
 SEMVER_TAG = re.compile(r"^v?\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$")
 
@@ -403,7 +405,7 @@ def render_sarif(report: dict) -> dict:
             }
         )
     run = {
-        "tool": {"driver": {"name": "TagLedger", "version": "0.1.0", "rules": [{"id": key} for key in sorted(set(rule_ids.values()))]}},
+        "tool": {"driver": {"name": "TagLedger", "version": __version__, "rules": [{"id": key} for key in sorted(set(rule_ids.values()))]}},
         "results": results,
         "properties": {
             "source": report["source"],

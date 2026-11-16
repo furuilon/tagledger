@@ -1,5 +1,9 @@
 # TagLedger
 
+<p align="center"><img src="assets/tagledger-icon.svg" alt="TagLedger 自制图标" width="112"></p>
+
+![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB) ![Git 2.30+](https://img.shields.io/badge/Git-2.30%2B-F05032) ![MIT](https://img.shields.io/badge/License-MIT-green) ![无 Python 运行时依赖](https://img.shields.io/badge/runtime%20dependencies-none-brightgreen)
+
 TagLedger 为依赖仓库保存一份明确、可审阅的 Git tag 历史基线，之后检查这些 tag 名称是否仍指向同一 Git 对象。适合希望把 tag 历史记录提交到自身依赖配置旁边的维护者。
 
 这是本地命令行工具。远端检查只读取 tag 引用；`verify` 不会 checkout、改写或推送 tag，也不会更新基线。
@@ -7,6 +11,18 @@ TagLedger 为依赖仓库保存一份明确、可审阅的 Git tag 历史基线�
 **它能发现漂移，但不能判断哪个版本才是真实可信的版本。** 首次保存基线前，请通过可信渠道核对来源和版本。
 
 English version：[README.en.md](README.en.md) · [项目规格](PROJECT_SPEC.md) · [技术机制](TECHNICAL_INNOVATION.md) · [架构](ARCHITECTURE.md) · [用户验收指南](USER_ACCEPTANCE.md)
+
+## 技术栈与支持范围
+
+| 项目 | 当前声明 |
+|---|---|
+| 实现语言 | Python 3.11+；纯 Python，不含 C/C++ 扩展 |
+| Git | 最低版本声明为 2.30；CI 尚未固定并验证这个最低版本 |
+| 运行时 | Python 标准库与系统 Git；无第三方 Python 运行时依赖 |
+| 构建 | setuptools 77.0.3+（仅构建时需要） |
+| CI 目标 | GitHub Actions 的 Ubuntu/Windows 最新镜像 × Python 3.11、3.12、3.13、3.14；首次托管运行完成前不代表矩阵已通过 |
+| 包版本 | 0.1.0 开发快照；尚无 PyPI 发布 |
+| 许可证 | MIT；见 [LICENSE](LICENSE) |
 
 ## 安装
 
@@ -43,6 +59,8 @@ tagledger verify .tagledger/repository.json `
 
 远端来源只接受 HTTP、HTTPS、SSH、Git 协议和 SSH scp 写法（例如 `git@host:owner/repository.git`）。自定义 remote-helper 协议与 `file://` URL 会被拒绝；远端 Git 调用会设置明确的传输协议白名单。本地仓库请直接传文件系统路径，路径名可以包含 `#`。
 
+`git://` 没有传输加密或服务器身份认证，建议优先使用 HTTPS 或 SSH；仅在可信网络上使用 `git://`。
+
 不要把 token 或密码写进 source URL。为避免凭据进入基线或报告，TagLedger 会拒绝带内嵌用户名/密码的 HTTP(S) URL 和带凭据类查询参数的 URL。SSH/scp 用户名会原样保存在 source 标识中，校验器不会把它识别为秘密，因此也不要把 token 或密码放在用户名字段。请改用 Git Credential Manager、其他 credential helper，或 SSH agent/key。
 
 ## 报告变化类型
@@ -54,6 +72,8 @@ tagledger verify .tagledger/repository.json `
 - 固定版本候选发生变化会让默认检查返回失败；可移动别名和未分类 tag 会标为待复核。
 
 报告只包含 tag 名、源标识、时间戳和对象 ID，不输出 Git 错误详情或凭据 helper 输出。HTML 是独立文件，并对 tag 名与 source 做 HTML 转义。
+
+基线和报告会保留 source 标识。绝对本地路径可能暴露 Windows 用户名或目录结构，远端地址也可能泄露私有仓库名称；相对本地路径则相对于运行命令时的当前目录解析。提交基线或分享报告前，请检查其中的 source。不要把凭据放入 source URL。
 
 退出码：`0` 无漂移；`1` 有漂移或待复核项；`2` 输入、Git 或报告写入错误。
 
@@ -81,8 +101,8 @@ $env:PYTHONPATH = "src"
 python -m unittest discover -s tests -v
 ```
 
-测试使用临时本地 bare Git 仓库和模拟的远端输出，不访问公共主机。更多细节见 [架构说明](ARCHITECTURE.md)、[工作手册](WORK_MANUAL.md) 与 [验收指南](USER_ACCEPTANCE.md)。
+测试使用临时本地 bare Git 仓库和模拟的远端输出，不访问公共主机。更多细节见 [架构说明](ARCHITECTURE.md)、[工作手册](WORK_MANUAL.md)、[性能记录](PERFORMANCE_NOTES.md) 与 [验收指南](USER_ACCEPTANCE.md)。
 
 ## 许可证
 
-本项目采用 MIT 许可证，完整文本见 [LICENSE](LICENSE)。依赖、代码相似度检查范围和版权归属待确认事项见工作区的[两轮审查报告](../../docs/RELEASE_READINESS_AUDIT_2026-11-16.md)。
+本项目采用 MIT 许可证，完整文本见 [LICENSE](LICENSE)。代码来源、相似度检查范围和仍待人工确认事项见[深度复核记录](RELEASE_REVIEW_2026-11-16.md)。

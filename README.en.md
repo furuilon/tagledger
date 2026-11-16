@@ -1,5 +1,9 @@
 # TagLedger
 
+<p align="center"><img src="assets/tagledger-icon.svg" alt="Original TagLedger icon" width="112"></p>
+
+![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB) ![Git 2.30+](https://img.shields.io/badge/Git-2.30%2B-F05032) ![MIT](https://img.shields.io/badge/License-MIT-green) ![No Python runtime dependencies](https://img.shields.io/badge/runtime%20dependencies-none-brightgreen)
+
 TagLedger keeps an explicit record of the Git tags a dependency exposed at a point in time, then checks whether those names still point to the same Git objects. It is designed for maintainers who want a reviewable history file they can commit beside their dependency configuration.
 
 It is a local CLI. Remote checks read tag refs only. TagLedger does not checkout code, rewrite a ref, push, or update a baseline during `verify`.
@@ -7,6 +11,18 @@ It is a local CLI. Remote checks read tag refs only. TagLedger does not checkout
 **This tool identifies drift; it cannot tell which revision is authentic.** Verify the first baseline through a trusted source before committing it.
 
 简体中文主页：[README.md](README.md) · [用户验收指南](USER_ACCEPTANCE.md) · [架构](ARCHITECTURE.md) · [项目规格](PROJECT_SPEC.md) · [技术机制](TECHNICAL_INNOVATION.md)
+
+## Stack and support scope
+
+| Area | Current declaration |
+|---|---|
+| Implementation | Python 3.11+; pure Python with no C/C++ extension |
+| Git | Minimum declared version is 2.30; CI does not yet pin and validate that minimum |
+| Runtime | Python standard library and the system Git executable; no third-party Python runtime dependencies |
+| Build | setuptools 77.0.3+ (build time only) |
+| CI targets | Ubuntu and Windows latest GitHub-hosted images × Python 3.11, 3.12, 3.13 and 3.14; configured targets are not passing results until hosted CI runs |
+| Package version | 0.1.0 development snapshot; not published to PyPI |
+| License | MIT; see [LICENSE](LICENSE) |
 
 ## Install
 
@@ -50,6 +66,8 @@ For a local Git repository, the tool reads local tag refs with `for-each-ref`. F
 
 Remote sources are limited to HTTP, HTTPS, SSH, Git transport, and SSH scp-style references such as `git@host:owner/repository.git`. Custom remote-helper protocols and `file://` URLs are rejected; remote Git calls set an explicit protocol allowlist. Local repositories should be supplied as filesystem paths, including paths containing `#`.
 
+The `git://` transport has no transport encryption or server authentication. Prefer HTTPS or SSH, and use `git://` only on a trusted network.
+
 Do not put tokens or passwords in a source URL. TagLedger rejects HTTP(S) URLs with embedded usernames/passwords and credential-like query parameters so they cannot be copied into a committed baseline or report. SSH/scp usernames remain part of the stored source identifier and are not treated as secrets by the validator; never place tokens or passwords there. Use Git Credential Manager, another configured credential helper, or an SSH agent/key instead.
 
 ## What the report says
@@ -61,6 +79,8 @@ Do not put tokens or passwords in a source URL. TagLedger rejects HTTP(S) URLs w
 - `version-like-fixed` drift fails the default check; mutable aliases and unclassified refs are reported for review.
 
 Reports contain tag names, source identifier, timestamps and OIDs. They never include Git stderr or credential-helper output. HTML is self-contained and escapes tag names and source values.
+
+Baselines and reports retain the source identifier. Absolute local paths can expose a Windows username or directory structure, and remote addresses can reveal private repository names. Relative local paths resolve from the working directory used to run the command. Review the source value before committing a baseline or sharing a report. Never put credentials in a source URL.
 
 Exit codes: `0` clean; `1` drift or review finding; `2` input, Git, or report-write error.
 
@@ -88,8 +108,10 @@ $env:PYTHONPATH = "src"
 python -m unittest discover -s tests -v
 ```
 
-The tests use a temporary local bare Git repository plus mocked remote output. They do not contact a public host.
+The tests use a temporary local bare Git repository plus mocked remote output. They do not contact a public host. See the [recorded performance notes](PERFORMANCE_NOTES.md) for the limits of earlier synthetic measurements.
 
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+See the [three-pass release review](RELEASE_REVIEW_2026-11-16.md) for the detailed version, packaging, CI and security-boundary review.

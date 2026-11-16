@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">TagLedger</title>
+  <desc id="desc">A ledger page with a tracked Git tag path.</desc>
+  <rect width="128" height="128" rx="28" fill="#14263d"/>
+  <path d="M34 22h42l20 20v64a8 8 0 0 1-8 8H34a8 8 0 0 1-8-8V30a8 8 0 0 1 8-8Z" fill="#f4f7fb"/>
+  <path d="M76 22v18a4 4 0 0 0 4 4h16" fill="#d9e4f2"/>
+  <path d="M43 57h23M43 70h16M43 83h12" fill="none" stroke="#9aaec7" stroke-linecap="round" stroke-width="5"/>
+  <path d="M67 82h10l10-10h7" fill="none" stroke="#e88a45" stroke-linecap="round" stroke-linejoin="round" stroke-width="5"/>
+  <circle cx="67" cy="82" r="5" fill="#e88a45"/>
+  <circle cx="94" cy="72" r="5" fill="#46b5a4"/>
+  <path d="M91 56h12l8 8-8 8H91l-8-8 8-8Z" fill="#e88a45"/>
+  <circle cx="95" cy="64" r="2.5" fill="#14263d"/>
+</svg>

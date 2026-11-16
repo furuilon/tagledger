@@ -33,7 +33,7 @@ The mechanism deliberately does not claim a cryptographic trust anchor. OIDs ide
 
 ## Performance
 
-Parsing and comparison are linear in the number of visible refs plus sorting for deterministic output. Network latency is external to the tool. A small synthetic parser timing is recorded in `../../docs/PERFORMANCE_REPORT.md`; it is not a production-scale guarantee.
+Parsing and comparison are linear in the number of visible refs plus sorting for deterministic output. Network latency is external to the tool. Previously recorded synthetic timings and their limits are summarized in [PERFORMANCE_NOTES.md](PERFORMANCE_NOTES.md); they are not a production-scale guarantee.
 
 ## Limitations and next technical work
 
