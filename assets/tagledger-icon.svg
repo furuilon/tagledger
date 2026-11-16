@@ -1,13 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
-  <title id="title">TagLedger</title>
-  <desc id="desc">A ledger page with a tracked Git tag path.</desc>
+  <title id="title">TagLedger project icon</title>
+  <desc id="desc">A clean ledger with three recorded entries and a tagged Git reference.</desc>
   <rect width="128" height="128" rx="28" fill="#14263d"/>
-  <path d="M34 22h42l20 20v64a8 8 0 0 1-8 8H34a8 8 0 0 1-8-8V30a8 8 0 0 1 8-8Z" fill="#f4f7fb"/>
-  <path d="M76 22v18a4 4 0 0 0 4 4h16" fill="#d9e4f2"/>
-  <path d="M43 57h23M43 70h16M43 83h12" fill="none" stroke="#9aaec7" stroke-linecap="round" stroke-width="5"/>
-  <path d="M67 82h10l10-10h7" fill="none" stroke="#e88a45" stroke-linecap="round" stroke-linejoin="round" stroke-width="5"/>
-  <circle cx="67" cy="82" r="5" fill="#e88a45"/>
-  <circle cx="94" cy="72" r="5" fill="#46b5a4"/>
-  <path d="M91 56h12l8 8-8 8H91l-8-8 8-8Z" fill="#e88a45"/>
-  <circle cx="95" cy="64" r="2.5" fill="#14263d"/>
+  <path d="M29 18h48l19 19v72a7 7 0 0 1-7 7H29a7 7 0 0 1-7-7V25a7 7 0 0 1 7-7Z" fill="#f5f8fc"/>
+  <path d="M77 18v14a5 5 0 0 0 5 5h14" fill="#d8e3ef"/>
+  <path d="M37 48v43" fill="none" stroke="#46b5a4" stroke-linecap="round" stroke-width="4"/>
+  <circle cx="37" cy="49" r="3" fill="#14263d"/>
+  <circle cx="37" cy="69" r="3" fill="#14263d"/>
+  <circle cx="37" cy="89" r="3" fill="#14263d"/>
+  <path d="M48 49h33M48 69h22M48 89h15" fill="none" stroke="#9aaec3" stroke-linecap="round" stroke-width="5"/>
+  <path d="M75 76h19l15 13-15 13H75Z" fill="#ed9854"/>
+  <circle cx="95" cy="89" r="3" fill="#14263d"/>
 </svg>

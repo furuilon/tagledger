@@ -2,6 +2,8 @@
 
 <p align="center"><img src="assets/tagledger-icon.svg" alt="TagLedger 项目图标" width="112"></p>
 
+图标为本项目原创 SVG；素材来源见 [assets/README.md](assets/README.md)。
+
 ![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB) ![Git 2.30+](https://img.shields.io/badge/Git-2.30%2B-F05032) ![MIT](https://img.shields.io/badge/License-MIT-green) ![无 Python 运行时依赖](https://img.shields.io/badge/runtime%20dependencies-none-brightgreen)
 
 TagLedger 为依赖仓库保存一份明确、可审阅的 Git tag 历史基线，之后检查这些 tag 名称是否仍指向同一 Git 对象。适合希望把 tag 历史记录提交到自身依赖配置旁边的维护者。
