@@ -270,20 +270,29 @@ class ParserTests(unittest.TestCase):
             ):
                 load_baseline(path)
 
-    def test_load_baseline_wraps_json_recursion_and_integer_errors(self) -> None:
-        malformed = (
-            "[" * 2_000 + "0" + "]" * 2_000,
-            '{"schema_version":' + "9" * 5_000 + "}",
-        )
-        for index, contents in enumerate(malformed):
-            with tempfile.TemporaryDirectory() as temporary:
-                path = Path(temporary) / f"malformed-{index}.json"
-                path.write_text(contents, encoding="utf-8")
-                with (
-                    self.subTest(index=index),
-                    self.assertRaisesRegex(TagLedgerError, "not valid UTF-8 JSON"),
-                ):
-                    load_baseline(path)
+    def test_load_baseline_wraps_json_recursion_error(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "recursive.json"
+            path.write_text("{}", encoding="utf-8")
+            with (
+                patch("tagledger.core.json.loads", side_effect=RecursionError),
+                self.assertRaisesRegex(TagLedgerError, "not valid UTF-8 JSON"),
+            ):
+                load_baseline(path)
+
+    def test_load_baseline_wraps_json_integer_limit_error(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "integer-limit.json"
+            path.write_text('{"schema_version":' + "9" * 5_000 + "}", encoding="utf-8")
+            with self.assertRaisesRegex(TagLedgerError, "not valid UTF-8 JSON"):
+                load_baseline(path)
+
+    def test_load_baseline_rejects_deep_json_across_python_versions(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "deep.json"
+            path.write_text("[" * 2_000 + "0" + "]" * 2_000, encoding="utf-8")
+            with self.assertRaises(TagLedgerError):
+                load_baseline(path)
 
     def test_load_baseline_fails_closed_on_patterns_and_tag_schema(self) -> None:
         from tagledger.core import make_baseline, parse_ls_remote

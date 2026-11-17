@@ -26,7 +26,7 @@ It is a local CLI. Remote checks read tag refs only. TagLedger does not checkout
 | Package version | 0.1.0 development snapshot; not published to PyPI |
 | License | MIT; see [LICENSE](LICENSE) |
 
-Source tests, the module CLI and Ruff checks have passed locally on Windows build 26200, Python 3.11.0 and Git 2.54.0; this does not verify a built wheel installation. Python 3.12–3.14, macOS and the declared Git 2.30 minimum remain unverified.
+Local verification used Windows build 26200 and Git 2.54.0. Source tests passed on Python 3.11.0 and 3.14.2; wheel/sdist builds, isolated Python 3.14.2 wheel installation and the CLI entry point also passed. Python 3.12–3.13, macOS/Linux, the declared Git 2.30 minimum, and the hosted GitHub Actions matrix remain unverified.
 
 ## Install
 

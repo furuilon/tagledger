@@ -26,7 +26,7 @@ English version：[README.en.md](README.en.md) · [项目规格](PROJECT_SPEC.md
 | 包版本 | 0.1.0 开发快照；尚无 PyPI 发布 |
 | 许可证 | MIT；见 [LICENSE](LICENSE) |
 
-本机已通过源码测试、模块 CLI 与 Ruff 的环境为 Windows build 26200、Python 3.11.0、Git 2.54.0；这不代表 wheel 安装已验证。Python 3.12–3.14、macOS 和声明的 Git 2.30 最低版均未验证。
+本机验证：Windows build 26200、Git 2.54.0；源码测试在 Python 3.11.0 与 3.14.2 通过，wheel/sdist 构建、Python 3.14.2 隔离安装和 CLI 入口检查通过。Python 3.12–3.13、macOS/Linux 与声明的 Git 2.30 最低版本仍未验证；GitHub Actions 矩阵也尚未运行。
 
 ## 安装
 

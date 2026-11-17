@@ -24,7 +24,7 @@
 - Verify added, deleted, moved, rewritten-object, mutable-alias, and filtered-tag cases.
 - Test malformed remote output, empty-source guard, baseline round trip, explicit advance gates, HTML escaping, and CLI exit codes.
 - CI is configured for Ubuntu, macOS, and Windows with Python 3.11–3.14. These are configured targets; support is not confirmed until hosted workflows run successfully. The declared Git minimum (2.30) is not yet exercised by a pinned-version CI job.
-- Current state: `PARTIAL` until the final-tree wheel/sdist build and installed entry point are revalidated in a healthy Python environment. The current source suite ran 46 tests: 45 passed and the physical hard-link case was skipped because the sandbox denied link creation; a mocked alias check passed. Required docs are present; a prior venv install is historical evidence only. See `RELEASE_REVIEW_2026-11-16.md`. The user's review against a repository they trust remains a separate acceptance step.
+- Current state: `PARTIAL` pending hosted CI and manual acceptance. On Windows, wheel/sdist builds and installed CLI smoke checks passed in an isolated Python 3.14.2 environment with build 1.6.1 and setuptools 84.2.1; package contents include the source, MIT license metadata, and console entry point. The source suite now runs 48 tests: 47 passed and one physical hard-link test is skipped when the sandbox denies link creation; the mocked alias check passes. Source tests also pass on Python 3.11.0. Python 3.12–3.13, macOS/Linux, the declared Git 2.30 minimum, and hosted Actions remain unverified. The user's review against a repository they trust remains a separate acceptance step; see `RELEASE_REVIEW_2026-11-16.md`.
 
 ## Risks
 
