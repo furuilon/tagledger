@@ -513,6 +513,15 @@ class GitIntegrationTests(unittest.TestCase):
     def git(
         self, *args: str, cwd: Path | None = None, input_text: str | None = None
     ) -> str:
+        git_env = os.environ.copy()
+        git_env.update(
+            {
+                "GIT_AUTHOR_NAME": "TagLedger Test",
+                "GIT_AUTHOR_EMAIL": "tagledger@example.invalid",
+                "GIT_COMMITTER_NAME": "TagLedger Test",
+                "GIT_COMMITTER_EMAIL": "tagledger@example.invalid",
+            }
+        )
         proc = subprocess.run(
             ["git", *args],
             cwd=cwd,
@@ -521,6 +530,7 @@ class GitIntegrationTests(unittest.TestCase):
             encoding="utf-8",
             check=False,
             input=input_text,
+            env=git_env,
         )
         if proc.returncode:
             self.fail(f"git {' '.join(args)} failed: {proc.stderr}")
@@ -561,6 +571,28 @@ class GitIntegrationTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.temp.cleanup()
+
+    def test_git_helper_uses_deterministic_identity_when_environment_is_empty(
+        self,
+    ) -> None:
+        repository = self.root / "identity-check"
+        self.git("init", str(repository))
+        (repository / "fixture.txt").write_text("fixture\n", encoding="utf-8")
+
+        empty_identity = {
+            "GIT_AUTHOR_NAME": "",
+            "GIT_AUTHOR_EMAIL": "",
+            "GIT_COMMITTER_NAME": "",
+            "GIT_COMMITTER_EMAIL": "",
+        }
+        with patch.dict(os.environ, empty_identity):
+            self.git("add", "fixture.txt", cwd=repository)
+            self.git("commit", "-m", "fixture", cwd=repository)
+            author = self.git(
+                "show", "-s", "--format=%an <%ae>", "HEAD", cwd=repository
+            )
+
+        self.assertEqual(author, "TagLedger Test <tagledger@example.invalid>")
 
     def test_cli_maps_report_path_resolution_loop_to_exit_code_2(self) -> None:
         baseline_path = self.root / "loop-baseline.json"

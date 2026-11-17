@@ -22,11 +22,11 @@ It is a local CLI. Remote checks read tag refs only. TagLedger does not checkout
 | Git | Minimum declared version is 2.30; CI does not yet pin and validate that minimum |
 | Runtime | Python standard library and the system Git executable; no third-party Python runtime dependencies |
 | Build | setuptools 77.0.3+ (build time only) |
-| CI targets | Ubuntu, macOS and Windows latest GitHub-hosted images × Python 3.11, 3.12, 3.13 and 3.14; configured targets are not passing results until hosted CI runs |
+| CI targets | Ubuntu, macOS and Windows latest GitHub-hosted images × Python 3.11, 3.12, 3.13 and 3.14; the screenshot shows a failing pre-fix run, and hosted CI has not rerun after the local fix |
 | Package version | 0.1.0 development snapshot; not published to PyPI |
 | License | MIT; see [LICENSE](LICENSE) |
 
-Local verification used Windows build 26200 and Git 2.54.0. Source tests passed on Python 3.11.0 and 3.14.2; wheel/sdist builds, isolated Python 3.14.2 wheel installation and the CLI entry point also passed. Python 3.12–3.13, macOS/Linux, the declared Git 2.30 minimum, and the hosted GitHub Actions matrix remain unverified.
+Local verification used Windows build 26200 and Git 2.54.0. The current source tree ran 49 tests on Python 3.11.0: 48 passed and one physical hard-link test was skipped because the sandbox denied link creation. The four Git author/committer identity environment variables were set to empty values for this run, confirming the test fixture supplies its own identity. The Python 3.14.2 result covered a previous 48-test tree and did not include this regression test. Earlier wheel/sdist builds and isolated Python 3.14.2 installation passed. The screenshot shows 15 failures in a pre-fix hosted run; hosted CI has not rerun after the local fix. Python 3.12–3.13, macOS/Linux and Git 2.30 remain unverified.
 
 ## Install
 

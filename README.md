@@ -22,11 +22,11 @@ English version：[README.en.md](README.en.md) · [项目规格](PROJECT_SPEC.md
 | Git | 最低版本声明为 2.30；CI 尚未固定并验证这个最低版本 |
 | 运行时 | Python 标准库与系统 Git；无第三方 Python 运行时依赖 |
 | 构建 | setuptools 77.0.3+（仅构建时需要） |
-| CI 目标 | GitHub Actions 的 Ubuntu/macOS/Windows 最新镜像 × Python 3.11、3.12、3.13、3.14；首次托管运行完成前不代表矩阵已通过 |
+| CI 目标 | GitHub Actions 的 Ubuntu/macOS/Windows 最新镜像 × Python 3.11、3.12、3.13、3.14；截图所示的修复前运行失败，本地修复后的托管结果待重跑 |
 | 包版本 | 0.1.0 开发快照；尚无 PyPI 发布 |
 | 许可证 | MIT；见 [LICENSE](LICENSE) |
 
-本机验证：Windows build 26200、Git 2.54.0；源码测试在 Python 3.11.0 与 3.14.2 通过，wheel/sdist 构建、Python 3.14.2 隔离安装和 CLI 入口检查通过。Python 3.12–3.13、macOS/Linux 与声明的 Git 2.30 最低版本仍未验证；GitHub Actions 矩阵也尚未运行。
+本机验证：Windows build 26200、Git 2.54.0。当前源码树在 Python 3.11.0 运行 49 项测试，48 项通过、1 项因沙箱拒绝创建物理硬链接而跳过；本次还将四个 Git author/committer 身份环境变量设为空，验证测试夹具不依赖机器级 Git 身份。Python 3.14.2 的 48 项结果属于前一版代码，新增回归用例尚未在该版本运行。wheel/sdist 构建和 Python 3.14.2 隔离安装属于此前检查结果。截图显示修复前的托管运行有 15 项失败；本地修复后的 Actions 尚未重跑。Python 3.12–3.13、macOS/Linux 与声明的 Git 2.30 最低版本仍未验证。
 
 ## 安装
 
