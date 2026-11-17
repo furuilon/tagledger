@@ -7,7 +7,7 @@
 - **Problem:** A tag name can be moved or deleted after a consumer has observed it; consumers may keep different local copies without a shared history.
 - **Use cases:** Establish a checked baseline for a dependency; run read-only CI drift checks; review added, missing, moved, or rewritten tags before explicitly advancing history.
 - **Existing approaches and prior art:** Manual `git ls-remote`, provider immutable release controls, broad monitors such as Sentinel, GitHub Actions lock tools such as SecureCI/GitHub workflow dependency lockfiles, and CertiSigma Census's local `ref-snapshot`/`tag-drift` workflow. These cover related but different scopes; tag drift detection itself is established prior art.
-- **Differentiation:** TagLedger inspects arbitrary Git remotes as well as local repositories, records both the tag object OID and peeled target OID for each visible tag, and compares that committed, versioned JSON evidence later. This is a scope and data-model distinction, not a claim of a novel detection principle. No service account or server is required.
+- **Differentiation:** TagLedger inspects Git remotes using supported transports as well as local repositories, records both the tag object OID and peeled target OID for each visible tag, and compares that committed, versioned JSON evidence later. This is a scope and data-model distinction, not a claim of a novel detection principle. No service account or server is required.
 
 ## MVP and implementation
 
@@ -24,7 +24,7 @@
 - Verify added, deleted, moved, rewritten-object, mutable-alias, and filtered-tag cases.
 - Test malformed remote output, empty-source guard, baseline round trip, explicit advance gates, HTML escaping, and CLI exit codes.
 - CI is configured for Ubuntu, macOS, and Windows with Python 3.11–3.14. These are configured targets; support is not confirmed until hosted workflows run successfully. The declared Git minimum (2.30) is not yet exercised by a pinned-version CI job.
-- Current state: `PARTIAL` pending hosted CI and manual acceptance. On Windows, wheel/sdist builds and installed CLI smoke checks passed in an isolated Python 3.14.2 environment with build 1.6.1 and setuptools 84.2.1; package contents include the source, MIT license metadata, and console entry point. The source suite runs 48 tests: 47 passed and one physical hard-link test is skipped when the sandbox denies link creation; the mocked alias check passes. Source tests also pass on Python 3.11.0. Python 3.12–3.13, macOS/Linux, the declared Git 2.30 minimum, and hosted Actions remain unverified. Review notes and user acceptance instructions are maintained in the parent Hidden Gems workspace, outside this repository.
+- Current state: `PARTIAL` pending hosted CI and hands-on maintainer acceptance. On Windows, wheel/sdist builds and installed CLI smoke checks passed in an isolated Python 3.14.2 environment with build 1.6.1 and setuptools 84.2.1; package contents include the source, MIT license metadata, and console entry point. The source suite runs 48 tests: 47 passed and one physical hard-link test is skipped when the sandbox denies link creation; the mocked alias check passes. Source tests also pass on Python 3.11.0. Python 3.12–3.13, macOS/Linux, the declared Git 2.30 minimum, and hosted Actions remain unverified.
 
 ## Risks
 

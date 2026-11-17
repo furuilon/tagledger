@@ -1,6 +1,6 @@
 # Recorded performance notes
 
-These measurements were recorded on 2026-11-11 in the local Windows workspace with Python 3.11. They use synthetic Git reference text and are not release benchmarks, CI thresholds, or guarantees for networked repositories.
+These measurements were recorded on a Windows machine with Python 3.11.0 on 2026-11-11. They use synthetic Git reference text and are not release benchmarks, CI thresholds, or guarantees for networked repositories.
 
 | Workload | Recorded result | Scope |
 |---|---:|---|
@@ -8,7 +8,7 @@ These measurements were recorded on 2026-11-11 in the local Windows workspace wi
 | Parse, baseline, and compare two 100,000-row inputs; 3,000 expected changes | 5.980 s total; malformed final row rejected at row 100,001 in 0.949 s | Separate stage timings: parse old 1.147 s, parse current 1.164 s, baseline 2.220 s, compare 1.449 s. |
 | Memory during the 100,000-row workload | Sampled RSS increase 73.0 MiB; separate `tracemalloc` Python allocation peak 73.9 MiB | RSS began with both generated input strings already in memory; sampling every 5 ms can miss short-lived peaks. `tracemalloc` materially slows execution. |
 
-The inputs were generated locally and no public host was contacted. Network latency, very large real repositories, slow disks, and sustained remote operations were not measured. See the Hidden Gems portfolio research notes for the broader cross-project benchmark context; those workspace-level records are not included in this standalone project.
+The inputs were generated locally and no public host was contacted. Network latency, very large real repositories, slow disks, and sustained remote operations were not measured. These focused parser measurements do not represent a broader cross-project or large-repository benchmark.
 
 ## 2026-11-16 reproducible parser recheck
 

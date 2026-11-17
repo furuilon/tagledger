@@ -56,12 +56,14 @@ tagledger snapshot https://github.com/OWNER/REPOSITORY.git `
 
 如果确认仓库本来就没有 tag，可显式加 `--allow-empty`；默认空结果会被视为来源地址或筛选条件可能错误。
 
-把 `.tagledger/repository.json` 与依赖变更一起提交。以后生成 HTML 与 SARIF 对比报告：
+把 `.tagledger/repository.json` 与依赖变更一起提交。以后可用下面的 PowerShell 命令比较 tag；报告写入系统临时目录，不会显示为依赖仓库中的未跟踪文件：
 
 ```powershell
+$reportDir = Join-Path $env:TEMP ('tagledger-reports-' + [guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Force -Path $reportDir | Out-Null
 tagledger verify .tagledger/repository.json `
-  --html .tagledger/latest-report.html `
-  --sarif .tagledger/latest-report.sarif
+  --html (Join-Path $reportDir 'latest-report.html') `
+  --sarif (Join-Path $reportDir 'latest-report.sarif')
 ```
 
 精确版本名（如 `v2.4.1`）默认按固定版本候选处理；`v2`、`stable` 这类可移动别名只有在生成基线时通过 `--mutable` 明确标记，才按可移动引用分类。名称规则只是启发式判断，请核对报告。
@@ -73,6 +75,10 @@ tagledger verify .tagledger/repository.json `
 `git://` 没有传输加密或服务器身份认证，建议优先使用 HTTPS 或 SSH；仅在可信网络上使用 `git://`。
 
 不要把 token 或密码写进 source URL。TagLedger 会拒绝带内嵌用户名/密码的 HTTP(S) URL，并按常见凭据字段名启发式拒绝查询参数；这不是通用凭据扫描器，不能识别所有厂商自定义字段。SSH/scp 用户名会原样保存在 source 标识中，校验器不会把它识别为秘密，因此也不要把 token 或密码放在用户名字段。请改用 Git Credential Manager、其他 credential helper，或 SSH agent/key。
+
+## 相关工作
+
+Git tag 漂移检查已有先行实现。[CertiSigma Census](https://developers.certisigma.ch/census) 提供 `git ref-snapshot` 和 `tag-drift`；[Sentinel](https://github.com/Pranesh-Selvaraj/Sentinel) 是覆盖 GitHub 仓库、网页、PyPI 和 npm 软件包等来源的变更监视器。TagLedger 可读取本地路径及受支持的 HTTP(S)、SSH/scp、Git 传输来源，并将 annotated tag 对象 OID 与最终目标 OID 分别保存在可提交的 JSON 基线中。
 
 ## 报告变化类型
 

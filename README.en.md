@@ -56,12 +56,14 @@ tagledger snapshot https://github.com/OWNER/REPOSITORY.git `
 
 If an intentionally empty repository is expected, pass `--allow-empty`; otherwise an empty tag list is treated as a likely source or filter mistake.
 
-Commit `.tagledger/repository.json` with the dependency change. Later, compare the visible tags with that file:
+Commit `.tagledger/repository.json` with the dependency change. Later, compare the visible tags with that file. This PowerShell example writes reports to the system temporary directory so they do not appear as untracked files in the dependency repository:
 
 ```powershell
+$reportDir = Join-Path $env:TEMP ('tagledger-reports-' + [guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Force -Path $reportDir | Out-Null
 tagledger verify .tagledger/repository.json `
-  --html .tagledger/latest-report.html `
-  --sarif .tagledger/latest-report.sarif
+  --html (Join-Path $reportDir 'latest-report.html') `
+  --sarif (Join-Path $reportDir 'latest-report.sarif')
 ```
 
 An exact version name such as `v2.4.1` is treated as a fixed-version candidate by default. Floating aliases such as `v2` or `stable` are only treated as mutable when you explicitly pass `--mutable` during snapshot creation. Naming is only a heuristic; inspect the diff.
@@ -73,6 +75,10 @@ Remote sources are limited to HTTP, HTTPS, SSH, Git transport, and SSH scp-style
 The `git://` transport has no transport encryption or server authentication. Prefer HTTPS or SSH, and use `git://` only on a trusted network.
 
 Do not put tokens or passwords in a source URL. TagLedger rejects HTTP(S) URLs with embedded usernames/passwords and heuristically rejects common credential-like query parameter names. This is not a general secret detector and cannot recognize every vendor-specific field. SSH/scp usernames remain part of the stored source identifier and are not treated as secrets by the validator; never place tokens or passwords there. Use Git Credential Manager, another configured credential helper, or an SSH agent/key instead.
+
+## Related work
+
+Git tag drift checks have prior art. [CertiSigma Census](https://developers.certisigma.ch/census) provides `git ref-snapshot` and `tag-drift`; [Sentinel](https://github.com/Pranesh-Selvaraj/Sentinel) monitors changes across GitHub repositories, websites, PyPI packages, and npm packages. TagLedger reads local filesystem paths and Git sources over HTTP(S), SSH/scp, and Git transports, and stores annotated tag object OIDs separately from peeled target OIDs in a commit-ready JSON baseline.
 
 ## What the report says
 
