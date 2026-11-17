@@ -1,17 +1,34 @@
+# Python bytecode
 __pycache__/
 *.py[cod]
+
+# Build and packaging output
 build/
 dist/
 *.egg-info/
+pip-wheel-metadata/
+
+# Virtual environments
 .venv/
 venv/
+ENV/
+
+# Test and lint caches
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
 .tox/
 .coverage
+.coverage.*
 htmlcov/
+
+# Local secrets and temporary output
 .env
 .env.*
 !.env.example
 *.tmp
+
+# Operating system files
+.DS_Store
+Thumbs.db
+desktop.ini

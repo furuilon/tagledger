@@ -23,8 +23,8 @@
 - Exercise lightweight and annotated tags in a local bare Git repository.
 - Verify added, deleted, moved, rewritten-object, mutable-alias, and filtered-tag cases.
 - Test malformed remote output, empty-source guard, baseline round trip, explicit advance gates, HTML escaping, and CLI exit codes.
-- CI is configured for Windows and Ubuntu with Python 3.11–3.14. These are configured targets; support is not confirmed until the hosted workflow has run successfully. The declared Git minimum (2.30) is not yet exercised by a pinned-version CI job.
-- Current state: `PARTIAL` until the final-tree wheel/sdist build and installed entry-point are revalidated in a healthy Python environment. The current source suite ran 43 tests: 42 passed and the physical hard-link case was skipped because the sandbox denied link creation; a mocked alias check passed. Required docs are present; a prior venv install is historical evidence only. See `RELEASE_REVIEW_2026-11-16.md`. The user's review against a repository they trust remains a separate acceptance step.
+- CI is configured for Ubuntu, macOS, and Windows with Python 3.11–3.14. These are configured targets; support is not confirmed until hosted workflows run successfully. The declared Git minimum (2.30) is not yet exercised by a pinned-version CI job.
+- Current state: `PARTIAL` until the final-tree wheel/sdist build and installed entry point are revalidated in a healthy Python environment. The current source suite ran 46 tests: 45 passed and the physical hard-link case was skipped because the sandbox denied link creation; a mocked alias check passed. Required docs are present; a prior venv install is historical evidence only. See `RELEASE_REVIEW_2026-11-16.md`. The user's review against a repository they trust remains a separate acceptance step.
 
 ## Risks
 
