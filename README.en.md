@@ -2,7 +2,7 @@
 
 <p align="center"><img src="assets/tagledger-icon.svg" alt="TagLedger project icon" width="112"></p>
 
-The project mark is an original SVG; see [assets/README.md](assets/README.md) for its source note.
+The project mark is provided as an SVG; see [assets/README.md](assets/README.md) for its source note and usage boundaries.
 
 ![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB) ![Git 2.30+](https://img.shields.io/badge/Git-2.30%2B-F05032) ![MIT](https://img.shields.io/badge/License-MIT-green) ![No Python runtime dependencies](https://img.shields.io/badge/runtime%20dependencies-none-brightgreen)
 

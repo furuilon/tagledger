@@ -2,7 +2,7 @@
 
 <p align="center"><img src="assets/tagledger-icon.svg" alt="TagLedger 项目图标" width="112"></p>
 
-图标为本项目原创 SVG；素材来源见 [assets/README.md](assets/README.md)。
+项目图标为 SVG 格式；素材说明和使用边界见 [assets/README.md](assets/README.md)。
 
 ![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB) ![Git 2.30+](https://img.shields.io/badge/Git-2.30%2B-F05032) ![MIT](https://img.shields.io/badge/License-MIT-green) ![无 Python 运行时依赖](https://img.shields.io/badge/runtime%20dependencies-none-brightgreen)
 
