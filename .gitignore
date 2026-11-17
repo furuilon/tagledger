@@ -32,3 +32,9 @@ htmlcov/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Workspace-only review and acceptance records; keep them outside this repository.
+USER_ACCEPTANCE.md
+SELF_REVIEW.md
+RELEASE_REVIEW_*.md
+WORK_MANUAL.md

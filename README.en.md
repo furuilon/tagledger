@@ -12,7 +12,7 @@ It is a local CLI. Remote checks read tag refs only. TagLedger does not checkout
 
 **This tool identifies drift; it cannot tell which revision is authentic.** Verify the first baseline through a trusted source before committing it.
 
-简体中文主页：[README.md](README.md) · [用户验收指南](USER_ACCEPTANCE.md) · [架构](ARCHITECTURE.md) · [项目规格](PROJECT_SPEC.md) · [技术机制](TECHNICAL_INNOVATION.md)
+简体中文主页：[README.md](README.md) · [架构](ARCHITECTURE.md) · [项目规格](PROJECT_SPEC.md) · [技术机制](TECHNICAL_INNOVATION.md)
 
 ## Stack and support scope
 
@@ -119,4 +119,4 @@ The tests use a temporary local bare Git repository plus mocked remote output. T
 
 MIT. See [LICENSE](LICENSE).
 
-See the [three-pass release review](RELEASE_REVIEW_2026-11-16.md) for the detailed version, packaging, CI and security-boundary review.
+See this README, the project specification and the architecture notes for the documented scope, tested environments and known limits.

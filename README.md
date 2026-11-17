@@ -12,7 +12,7 @@ TagLedger 为依赖仓库保存一份明确、可审阅的 Git tag 历史基线�
 
 **它能发现漂移，但不能判断哪个版本才是真实可信的版本。** 首次保存基线前，请通过可信渠道核对来源和版本。
 
-English version：[README.en.md](README.en.md) · [项目规格](PROJECT_SPEC.md) · [技术机制](TECHNICAL_INNOVATION.md) · [架构](ARCHITECTURE.md) · [用户验收指南](USER_ACCEPTANCE.md)
+English version：[README.en.md](README.en.md) · [项目规格](PROJECT_SPEC.md) · [技术机制](TECHNICAL_INNOVATION.md) · [架构](ARCHITECTURE.md)
 
 ## 技术栈与支持范围
 
@@ -113,8 +113,8 @@ $env:PYTHONPATH = "src"
 python -m unittest discover -s tests -v
 ```
 
-测试使用临时本地 bare Git 仓库和模拟的远端输出，不访问公共主机。更多细节见 [架构说明](ARCHITECTURE.md)、[工作手册](WORK_MANUAL.md)、[性能记录](PERFORMANCE_NOTES.md) 与 [验收指南](USER_ACCEPTANCE.md)。
+测试使用临时本地 bare Git 仓库和模拟的远端输出，不访问公共主机。更多细节见 [架构说明](ARCHITECTURE.md)、[贡献指南](CONTRIBUTING.md) 与 [性能记录](PERFORMANCE_NOTES.md)。
 
 ## 许可证
 
-本项目采用 MIT 许可证，完整文本见 [LICENSE](LICENSE)。代码来源、相似度检查范围和仍待人工确认事项见[深度复核记录](RELEASE_REVIEW_2026-11-16.md)。
+本项目采用 MIT 许可证，完整文本见 [LICENSE](LICENSE)。已知限制和当前支持范围以本 README、项目规格和架构说明为准。
