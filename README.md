@@ -24,11 +24,11 @@ English version：[README.en.md](README.en.md) · [项目规格](PROJECT_SPEC.md
 | Git | 最低版本声明为 2.30；CI 尚未固定并验证这个最低版本 |
 | 运行时 | Python 标准库与系统 Git；无第三方 Python 运行时依赖 |
 | 构建 | setuptools 77.0.3+（仅构建时需要） |
-| CI 目标 | GitHub Actions run [#3](https://github.com/furuilon/tagledger/actions/runs/44207785546) 验证了文档更新的基线提交 `56bc2240d83581cfed91e669455b1f06bc7c48df`：Ubuntu/macOS/Windows × Python 3.11–3.14 的 12/12 组合通过，每个任务运行 49 项测试。本次文档修改尚未由新的 Actions run 验证 |
+| CI 目标 | GitHub Actions run [#4](https://github.com/furuilon/tagledger/actions/runs/44211475848) 在提交 `9efbcf0d8cea9bc3b384fcdbea370f230298a503` 上通过 Ubuntu/macOS/Windows × Python 3.11–3.14 的 12/12 组合，每个任务运行 49 项测试。请查看 [Actions 页面](https://github.com/furuilon/tagledger/actions/workflows/tests.yml)了解后续提交的状态；当前 runners 未验证声明的 Git 2.30 最低版本。 |
 | 包版本 | 0.1.0 开发快照；尚无 PyPI 发布 |
 | 许可证 | MIT；见 [LICENSE](LICENSE) |
 
-本机验证：Windows build 26200、Git 2.54.0。当前源码树在 Python 3.11.0 运行 49 项测试，48 项通过、1 项因沙箱拒绝创建物理硬链接而跳过；本次还将四个 Git author/committer 身份环境变量设为空，验证测试夹具不依赖机器级 Git 身份。旧 GitHub Actions [run #1](https://github.com/furuilon/tagledger/actions/runs/44197865606) 中，Ubuntu/Python 3.11 和 Ubuntu/Python 3.12 两个测试任务各运行 48 项并报告 15 项 Git 集成测试失败；日志显示临时仓库提交因 committer identity 为空失败。修复提交 `9895ba58cdd4ea732774af565d1e6b8bcfd512df` 在 [run #2](https://github.com/furuilon/tagledger/actions/runs/44200405601) 的 12 个系统/Python 组合全部通过，每个 job 均运行 49 项测试。run [#3](https://github.com/furuilon/tagledger/actions/runs/44207785546) 也验证了本次文档修改的基线提交 `56bc2240d83581cfed91e669455b1f06bc7c48df`，12 个组合均完成安装、CLI 冒烟、`pip check` 和 49 项测试；本次后续文档差异尚未进入 CI。Hosted runners 使用各系统最新镜像和当前 Git，**未验证声明的 Git 2.30 最低版本**。此前 Python 3.14.2 的独立 sdist 检查针对较早快照；本项目尚未发布到 PyPI。
+本机验证：Windows build 26200、Git 2.54.0。当前源码树在 Python 3.11.0 运行 49 项测试，48 项通过、1 项因沙箱拒绝创建物理硬链接而跳过；本次还将四个 Git author/committer 身份环境变量设为空，验证测试夹具不依赖机器级 Git 身份。旧 GitHub Actions [run #1](https://github.com/furuilon/tagledger/actions/runs/44197865606) 中，Ubuntu/Python 3.11 和 Ubuntu/Python 3.12 两个测试任务各运行 48 项并报告 15 项 Git 集成测试失败；日志显示临时仓库提交因 committer identity 为空失败。修复提交 `9895ba58cdd4ea732774af565d1e6b8bcfd512df` 在 [run #2](https://github.com/furuilon/tagledger/actions/runs/44200405601) 的 12 个系统/Python 组合全部通过，每个 job 均运行 49 项测试。[run #3](https://github.com/furuilon/tagledger/actions/runs/44207785546) 与 [run #4](https://github.com/furuilon/tagledger/actions/runs/44211475848) 分别通过提交 `56bc2240d83581cfed91e669455b1f06bc7c48df` 和 `9efbcf0d8cea9bc3b384fcdbea370f230298a503` 的 12 项矩阵；每项均完成安装、CLI 冒烟、`pip check` 和 49 项测试。请查看 [Actions 页面](https://github.com/furuilon/tagledger/actions/workflows/tests.yml)了解后续提交状态。Hosted runners 使用各系统当前镜像和 Git，**未验证声明的 Git 2.30 最低版本**。此前 Python 3.14.2 的独立 sdist 检查针对较早快照；本项目尚未发布到 PyPI。
 
 ## 安装
 
