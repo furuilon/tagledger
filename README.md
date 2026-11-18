@@ -1,5 +1,7 @@
 # TagLedger
 
+[![GitHub Actions Tests](https://github.com/furuilon/tagledger/actions/workflows/tests.yml/badge.svg?branch=main&event=push)](https://github.com/furuilon/tagledger/actions/workflows/tests.yml)
+
 <p align="center"><img src="assets/tagledger-icon.svg" alt="TagLedger 项目图标" width="112"></p>
 
 项目图标为 SVG 格式；素材说明和使用边界见 [assets/README.md](assets/README.md)。
@@ -22,11 +24,11 @@ English version：[README.en.md](README.en.md) · [项目规格](PROJECT_SPEC.md
 | Git | 最低版本声明为 2.30；CI 尚未固定并验证这个最低版本 |
 | 运行时 | Python 标准库与系统 Git；无第三方 Python 运行时依赖 |
 | 构建 | setuptools 77.0.3+（仅构建时需要） |
-| CI 目标 | GitHub Actions 的 Ubuntu/macOS/Windows 最新镜像 × Python 3.11、3.12、3.13、3.14；截图所示的修复前运行失败，本地修复后的托管结果待重跑 |
+| CI 目标 | GitHub Actions run [#2](https://github.com/furuilon/tagledger/actions/runs/44200405601) 对提交 `9895ba58cdd4ea732774af565d1e6b8bcfd512df` 的 12/12 组合通过：Ubuntu/macOS/Windows × Python 3.11–3.14 |
 | 包版本 | 0.1.0 开发快照；尚无 PyPI 发布 |
 | 许可证 | MIT；见 [LICENSE](LICENSE) |
 
-本机验证：Windows build 26200、Git 2.54.0。当前源码树在 Python 3.11.0 运行 49 项测试，48 项通过、1 项因沙箱拒绝创建物理硬链接而跳过；本次还将四个 Git author/committer 身份环境变量设为空，验证测试夹具不依赖机器级 Git 身份。Python 3.14.2 的 48 项结果属于前一版代码，新增回归用例尚未在该版本运行。wheel/sdist 构建和 Python 3.14.2 隔离安装属于此前检查结果。截图显示修复前的托管运行有 15 项失败；本地修复后的 Actions 尚未重跑。Python 3.12–3.13、macOS/Linux 与声明的 Git 2.30 最低版本仍未验证。
+本机验证：Windows build 26200、Git 2.54.0。当前源码树在 Python 3.11.0 运行 49 项测试，48 项通过、1 项因沙箱拒绝创建物理硬链接而跳过；本次还将四个 Git author/committer 身份环境变量设为空，验证测试夹具不依赖机器级 Git 身份。旧 GitHub Actions [run #1](https://github.com/furuilon/tagledger/actions/runs/44197865606) 中，Ubuntu/Python 3.11 和 Ubuntu/Python 3.12 两个测试任务各运行 48 项并报告 15 项 Git 集成测试失败；日志显示临时仓库提交因 committer identity 为空失败。修复后的 [run #2](https://github.com/furuilon/tagledger/actions/runs/44200405601) 对上述提交的 12 个系统/Python 组合全部通过，包含安装、CLI 冒烟、`pip check` 和测试步骤。Hosted runners 使用各系统最新镜像和当前 Git，**未验证声明的 Git 2.30 最低版本**。此前 Python 3.14.2 的独立 sdist 检查针对较早快照；本项目尚未发布到 PyPI。
 
 ## 安装
 
