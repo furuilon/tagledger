@@ -28,7 +28,7 @@ It is a local CLI. Remote checks read tag refs only. TagLedger does not checkout
 | Package version | 0.2.0 development snapshot; not published to PyPI |
 | License | MIT; see [LICENSE](LICENSE) |
 
-GitHub Actions runs the matrix above for each commit; use the [Actions page](https://github.com/furuilon/tagledger/actions/workflows/tests.yml) to check the exact commit you plan to use. An earlier Windows/Python 3.11.0 source run had 49 tests: 48 passed and one physical hard-link test was skipped because the environment denied link creation. Hosted runners do not validate the declared Git 2.30 minimum. The current standalone sdist has not been inspected, and the package is not published to PyPI.
+GitHub Actions runs installation, CLI smoke checks, `pip check`, and the full test command in the matrix above for each commit. Use the [Actions page](https://github.com/furuilon/tagledger/actions/workflows/tests.yml) to check the commit you plan to use. A full local run on Windows/Python 3.11.0 ran 56 tests: 55 passed and one physical hard-link test was skipped because the environment denied link creation. That test passed in the hosted matrix. Hosted runners do not validate the declared Git 2.30 minimum. The current standalone sdist has not been inspected, and the package is not published to PyPI.
 
 ## Install
 

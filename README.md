@@ -28,7 +28,7 @@ English version：[README.en.md](README.en.md) · [项目规格](PROJECT_SPEC.md
 | 包版本 | 0.2.0 开发快照；尚无 PyPI 发布 |
 | 许可证 | MIT；见 [LICENSE](LICENSE) |
 
-GitHub Actions 会按提交运行上述系统/Python 矩阵；请在 [Actions 页面](https://github.com/furuilon/tagledger/actions/workflows/tests.yml)查看准备使用的具体提交。Windows/Python 3.11.0 的本机测试曾有 49 项：48 项通过、1 项因环境拒绝创建物理硬链接而跳过。托管 runner 没有验证最低声明 Git 2.30；当前独立 sdist 内容尚未复核，项目尚未发布到 PyPI。
+GitHub Actions 会按提交运行上述系统/Python 矩阵，包括安装、CLI smoke、`pip check` 和完整测试命令；请在 [Actions 页面](https://github.com/furuilon/tagledger/actions/workflows/tests.yml)查看准备使用的具体提交。本机 Windows/Python 3.11.0 的完整测试运行了 56 项，55 项通过，1 项物理 hard-link 测试因环境拒绝创建链接而跳过；对应测试已在托管矩阵成功运行。托管 runner 没有验证最低声明 Git 2.30；当前独立 sdist 内容尚未复核，项目尚未发布到 PyPI。
 
 ## 安装
 
