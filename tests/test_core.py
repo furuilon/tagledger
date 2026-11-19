@@ -27,6 +27,7 @@ from tagledger.core import (
     report_exit_code,
     write_baseline,
     validate_source,
+    write_text_output,
 )
 from tagledger.cli import main
 
@@ -921,6 +922,123 @@ class GitIntegrationTests(unittest.TestCase):
         html = html_path.read_text(encoding="utf-8")
         self.assertIn("TagLedger", html)
         self.assertIn("prefers-color-scheme:dark", html)
+
+    def test_cli_refuses_existing_outputs_unless_overwrite_is_explicit(self) -> None:
+        from argparse import Namespace
+        from tagledger.cli import run
+
+        baseline_path = self.root / "guarded-baseline.json"
+        snapshot_args = Namespace(
+            command="snapshot",
+            source=str(self.remote),
+            output=str(baseline_path),
+            include=None,
+            mutable=None,
+            allow_empty=False,
+            overwrite=False,
+        )
+        with redirect_stdout(StringIO()):
+            self.assertEqual(run(snapshot_args), 0)
+        baseline_before = baseline_path.read_bytes()
+
+        with (
+            patch("tagledger.cli.fetch_remote_tags") as fetch_remote,
+            self.assertRaisesRegex(TagLedgerError, "already exists.*--overwrite"),
+        ):
+            run(snapshot_args)
+        fetch_remote.assert_not_called()
+        self.assertEqual(baseline_path.read_bytes(), baseline_before)
+
+        baseline_path.write_text(
+            "replace only after explicit approval", encoding="utf-8"
+        )
+        snapshot_args.overwrite = True
+        with redirect_stdout(StringIO()):
+            self.assertEqual(run(snapshot_args), 0)
+        json.loads(baseline_path.read_text(encoding="utf-8"))
+
+        report_path = self.root / "guarded-report.json"
+        report_path.write_text("preserve this file", encoding="utf-8")
+        report_args = Namespace(
+            command="verify",
+            baseline=str(baseline_path),
+            source=None,
+            html=None,
+            sarif=None,
+            json_path=str(report_path),
+            overwrite=False,
+        )
+        report_before = report_path.read_bytes()
+        with (
+            patch("tagledger.cli.fetch_remote_tags") as fetch_remote,
+            self.assertRaisesRegex(TagLedgerError, "already exists.*--overwrite"),
+        ):
+            run(report_args)
+        fetch_remote.assert_not_called()
+        self.assertEqual(report_path.read_bytes(), report_before)
+
+        report_args.overwrite = True
+        with redirect_stdout(StringIO()):
+            self.assertEqual(run(report_args), 0)
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+        self.assertEqual(report["source"], str(self.remote))
+
+        report_args.json_path = str(baseline_path)
+        baseline_before = baseline_path.read_bytes()
+        with self.assertRaisesRegex(TagLedgerError, "cannot overwrite its baseline"):
+            run(report_args)
+        self.assertEqual(baseline_path.read_bytes(), baseline_before)
+
+    def test_output_write_does_not_clobber_a_file_created_during_write(self) -> None:
+        destination = self.root / "concurrent-output.txt"
+
+        def concurrent_create(_temporary: str, target: str) -> None:
+            Path(target).write_text("concurrent writer", encoding="utf-8")
+            raise FileExistsError("created concurrently")
+
+        with (
+            patch("tagledger.core.os.link", side_effect=concurrent_create),
+            self.assertRaisesRegex(TagLedgerError, "already exists.*--overwrite"),
+        ):
+            write_text_output(destination, "new content", label="Report output")
+
+        self.assertEqual(destination.read_text(encoding="utf-8"), "concurrent writer")
+
+    def test_output_write_uses_exclusive_fallback_without_hard_links(self) -> None:
+        destination = self.root / "exclusive-fallback.txt"
+        with patch("tagledger.core.os.link", side_effect=OSError("unsupported")):
+            write_text_output(destination, "fallback content")
+        self.assertEqual(destination.read_text(encoding="utf-8"), "fallback content")
+
+    def test_output_fallback_does_not_clobber_a_concurrent_target(self) -> None:
+        destination = self.root / "fallback-race.txt"
+
+        def create_target_then_disable_links(_temporary: str, target: str) -> None:
+            Path(target).write_text("fallback race winner", encoding="utf-8")
+            raise OSError("hard links unavailable")
+
+        with (
+            patch(
+                "tagledger.core.os.link",
+                side_effect=create_target_then_disable_links,
+            ),
+            self.assertRaisesRegex(TagLedgerError, "already exists.*--overwrite"),
+        ):
+            write_text_output(destination, "new content")
+
+        self.assertEqual(
+            destination.read_text(encoding="utf-8"), "fallback race winner"
+        )
+
+    def test_output_parent_creation_failure_uses_project_error(self) -> None:
+        destination = self.root / "unavailable-parent" / "report.txt"
+        with (
+            patch.object(Path, "mkdir", side_effect=OSError("parent unavailable")),
+            self.assertRaisesRegex(
+                TagLedgerError, "Could not write report output file"
+            ),
+        ):
+            write_text_output(destination, "report", label="Report output")
 
     def test_cli_rejects_empty_snapshot_unless_explicitly_allowed(self) -> None:
         from argparse import Namespace

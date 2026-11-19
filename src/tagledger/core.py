@@ -747,6 +747,79 @@ def ensure_outside_git_metadata(path: str | Path) -> Path:
     return target
 
 
+def ensure_output_available(path: str | Path, *, overwrite: bool, label: str) -> Path:
+    """Reject an existing output unless replacement was explicitly requested."""
+    target = Path(path)
+    try:
+        os.lstat(target)
+    except FileNotFoundError:
+        return target
+    except OSError as exc:
+        raise TagLedgerError("Output path could not be checked safely.") from exc
+    if not overwrite:
+        raise TagLedgerError(f"{label} already exists; pass --overwrite to replace it.")
+    return target
+
+
+def write_text_output(
+    path: str | Path,
+    content: str,
+    *,
+    overwrite: bool = False,
+    label: str = "Output",
+) -> None:
+    """Write UTF-8 output without clobbering an existing target by default."""
+    target = ensure_outside_git_metadata(path)
+    ensure_output_available(target, overwrite=overwrite, label=label)
+    temporary_name: str | None = None
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        descriptor, temporary_name = tempfile.mkstemp(
+            prefix=f".{target.name}.", suffix=".tmp", dir=target.parent
+        )
+        with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as stream:
+            stream.write(content)
+            stream.flush()
+        if overwrite:
+            os.replace(temporary_name, target)
+        else:
+            try:
+                os.link(temporary_name, target)
+            except FileExistsError as exc:
+                raise TagLedgerError(
+                    f"{label} already exists; pass --overwrite to replace it."
+                ) from exc
+            except OSError:
+                # Some filesystems do not support hard links. O_EXCL is a
+                # no-clobber fallback, though an interruption during this copy
+                # can leave a partial new file.
+                flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+                flags |= getattr(os, "O_BINARY", 0)
+                try:
+                    output_fd = os.open(target, flags, 0o600)
+                except FileExistsError as exc:
+                    raise TagLedgerError(
+                        f"{label} already exists; pass --overwrite to replace it."
+                    ) from exc
+                with (
+                    os.fdopen(output_fd, "wb") as output_stream,
+                    open(temporary_name, "rb") as source_stream,
+                ):
+                    shutil.copyfileobj(source_stream, output_stream)
+                    output_stream.flush()
+                    os.fsync(output_stream.fileno())
+    except TagLedgerError:
+        raise
+    except OSError as exc:
+        raise TagLedgerError(f"Could not write {label.lower()} file: {target}") from exc
+    finally:
+        if temporary_name is not None:
+            try:
+                Path(temporary_name).unlink(missing_ok=True)
+            except OSError:
+                pass
+
+
 def load_baseline(path: str | Path) -> dict:
     target = Path(path)
     try:
@@ -773,32 +846,16 @@ def load_baseline(path: str | Path) -> dict:
     return _validate_baseline(data)
 
 
-def write_baseline(path: str | Path, baseline: dict) -> None:
+def write_baseline(
+    path: str | Path, baseline: dict, *, overwrite: bool = False
+) -> None:
     _validate_baseline(baseline)
-    target = ensure_outside_git_metadata(path)
-    target.parent.mkdir(parents=True, exist_ok=True)
     body = json.dumps(baseline, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
     if len(body.encode("utf-8")) > MAX_BASELINE_BYTES:
         raise TagLedgerError(
             f"Baseline exceeds the {MAX_BASELINE_BYTES}-byte size limit."
         )
-    temporary_name = None
-    try:
-        descriptor, temporary_name = tempfile.mkstemp(
-            prefix=f".{target.name}.", suffix=".tmp", dir=target.parent
-        )
-        with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as stream:
-            stream.write(body)
-            stream.flush()
-        os.replace(temporary_name, target)
-    except OSError as exc:
-        raise TagLedgerError(f"Could not write baseline file: {target}") from exc
-    finally:
-        if temporary_name is not None:
-            try:
-                Path(temporary_name).unlink(missing_ok=True)
-            except OSError:
-                pass
+    write_text_output(path, body, overwrite=overwrite, label="Baseline output")
 
 
 def compare_baseline(

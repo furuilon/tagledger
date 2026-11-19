@@ -24,11 +24,11 @@ English version：[README.en.md](README.en.md) · [项目规格](PROJECT_SPEC.md
 | Git | 最低版本声明为 2.30；CI 尚未固定并验证这个最低版本 |
 | 运行时 | Python 标准库与系统 Git；无第三方 Python 运行时依赖 |
 | 构建 | setuptools 77.0.3+（仅构建时需要） |
-| CI 目标 | GitHub Actions run [#4](https://github.com/furuilon/tagledger/actions/runs/44211475848) 在提交 `9efbcf0d8cea9bc3b384fcdbea370f230298a503` 上通过 Ubuntu/macOS/Windows × Python 3.11–3.14 的 12/12 组合，每个任务运行 49 项测试。请查看 [Actions 页面](https://github.com/furuilon/tagledger/actions/workflows/tests.yml)了解后续提交的状态；当前 runners 未验证声明的 Git 2.30 最低版本。 |
+| CI 矩阵 | GitHub Actions 在 Ubuntu/macOS/Windows × Python 3.11–3.14 上运行；请查看 [Actions 页面](https://github.com/furuilon/tagledger/actions/workflows/tests.yml)核对具体提交的结果。当前 runner 未验证声明的 Git 2.30 最低版本。 |
 | 包版本 | 0.1.0 开发快照；尚无 PyPI 发布 |
 | 许可证 | MIT；见 [LICENSE](LICENSE) |
 
-本机验证：Windows build 26200、Git 2.54.0。当前源码树在 Python 3.11.0 运行 49 项测试，48 项通过、1 项因沙箱拒绝创建物理硬链接而跳过；本次还将四个 Git author/committer 身份环境变量设为空，验证测试夹具不依赖机器级 Git 身份。旧 GitHub Actions [run #1](https://github.com/furuilon/tagledger/actions/runs/44197865606) 中，Ubuntu/Python 3.11 和 Ubuntu/Python 3.12 两个测试任务各运行 48 项并报告 15 项 Git 集成测试失败；日志显示临时仓库提交因 committer identity 为空失败。修复提交 `9895ba58cdd4ea732774af565d1e6b8bcfd512df` 在 [run #2](https://github.com/furuilon/tagledger/actions/runs/44200405601) 的 12 个系统/Python 组合全部通过，每个 job 均运行 49 项测试。[run #3](https://github.com/furuilon/tagledger/actions/runs/44207785546) 与 [run #4](https://github.com/furuilon/tagledger/actions/runs/44211475848) 分别通过提交 `56bc2240d83581cfed91e669455b1f06bc7c48df` 和 `9efbcf0d8cea9bc3b384fcdbea370f230298a503` 的 12 项矩阵；每项均完成安装、CLI 冒烟、`pip check` 和 49 项测试。请查看 [Actions 页面](https://github.com/furuilon/tagledger/actions/workflows/tests.yml)了解后续提交状态。Hosted runners 使用各系统当前镜像和 Git，**未验证声明的 Git 2.30 最低版本**。此前 Python 3.14.2 的独立 sdist 检查针对较早快照；本项目尚未发布到 PyPI。
+GitHub Actions 会按提交运行上述系统/Python 矩阵；请在 [Actions 页面](https://github.com/furuilon/tagledger/actions/workflows/tests.yml)查看准备使用的具体提交。Windows/Python 3.11.0 的本机测试曾有 49 项：48 项通过、1 项因环境拒绝创建物理硬链接而跳过。托管 runner 没有验证最低声明 Git 2.30；当前独立 sdist 内容尚未复核，项目尚未发布到 PyPI。
 
 ## 安装
 
@@ -45,6 +45,8 @@ tagledger --version
 $env:PYTHONPATH = "src"
 python -m tagledger.cli --help
 ```
+
+`snapshot` 和 `verify` 默认拒绝替换已存在的输出文件。只有确认目标内容可以替换时才加 `--overwrite`；`verify --overwrite` 仍不能覆盖基线或让不同报告路径互相冲突。`snapshot --overwrite` 会重新写入基线，通常应优先使用带确认选项的 `advance` 流程。
 
 ## 使用
 
@@ -98,7 +100,7 @@ Git tag 漂移检查已有先行实现。[CertiSigma Census](https://developers.
 
 ## 更新基线
 
-`verify` 不会写基线；如果报告路径指向基线、多个报告路径冲突或目标位于 Git 管理目录，程序会拒绝写入。基线和报告以同目录临时文件原子替换；阅读报告后，可把新基线按正常代码评审流程提交；也可以明确执行：
+`verify` 不会写基线；如果报告路径指向基线、多个报告路径冲突或目标位于 Git 管理目录，程序会拒绝写入。新输出默认拒绝覆盖；支持硬链接的文件系统通过同目录临时文件无覆盖地创建目标，显式 `--overwrite` 则通过临时文件原子替换。若硬链接不可用，会退回独占创建后复制；复制被中断或失败时可能留下不完整的新文件，但不会覆盖已有目标。阅读报告后，可把新基线按正常代码评审流程提交；也可以明确执行：
 
 ```powershell
 tagledger advance .tagledger/repository.json --yes --accept-changes

@@ -4,13 +4,13 @@ import argparse
 import json
 import os
 import sys
-import tempfile
 from pathlib import Path
 
 from . import __version__
 from .core import (
     TagLedgerError,
     compare_baseline,
+    ensure_output_available,
     fetch_remote_tags,
     make_baseline,
     load_baseline,
@@ -19,6 +19,7 @@ from .core import (
     report_exit_code,
     write_baseline,
     ensure_outside_git_metadata,
+    write_text_output,
 )
 
 
@@ -64,7 +65,12 @@ def _same_path(first: Path, second: Path) -> bool:
     return False
 
 
-def _ensure_report_targets(baseline: str | Path, outputs: list[str | None]) -> None:
+def _ensure_report_targets(
+    baseline: str | Path,
+    outputs: list[str | None],
+    *,
+    overwrite: bool = False,
+) -> None:
     destinations = [Path(output) for output in outputs if output]
     baseline_path = Path(baseline)
     for destination in destinations:
@@ -74,28 +80,11 @@ def _ensure_report_targets(baseline: str | Path, outputs: list[str | None]) -> N
             raise TagLedgerError("Verify report output cannot overwrite its baseline.")
         if any(_same_path(destination, other) for other in destinations[index + 1 :]):
             raise TagLedgerError("Verify report output paths must be distinct.")
+        ensure_output_available(destination, overwrite=overwrite, label="Report output")
 
 
-def _write_report(path: str | Path, content: str) -> None:
-    destination = ensure_outside_git_metadata(path)
-    temporary_name: str | None = None
-    try:
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        descriptor, temporary_name = tempfile.mkstemp(
-            prefix=f".{destination.name}.", suffix=".tmp", dir=destination.parent
-        )
-        with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as stream:
-            stream.write(content)
-            stream.flush()
-        os.replace(temporary_name, destination)
-    except OSError as exc:
-        raise TagLedgerError("Could not write report output file.") from exc
-    finally:
-        if temporary_name is not None:
-            try:
-                Path(temporary_name).unlink(missing_ok=True)
-            except OSError:
-                pass
+def _write_report(path: str | Path, content: str, *, overwrite: bool = False) -> None:
+    write_text_output(path, content, overwrite=overwrite, label="Report output")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -113,6 +102,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     snapshot.add_argument("source", help="Git URL or local repository path")
     snapshot.add_argument("-o", "--output", required=True, help="baseline JSON path")
+    snapshot.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="replace the baseline output only when you have reviewed the target",
+    )
     snapshot.add_argument(
         "--include", action="append", help="tag glob to include; repeatable"
     )
@@ -133,6 +127,11 @@ def build_parser() -> argparse.ArgumentParser:
     verify.add_argument("--html", help="write a self-contained HTML report")
     verify.add_argument("--sarif", help="write a SARIF 2.1.0 report")
     verify.add_argument("--json", dest="json_path", help="write a JSON report")
+    verify.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="replace existing report files after checking for input conflicts",
+    )
 
     advance = sub.add_parser(
         "advance", help="replace a baseline after an explicit review"
@@ -155,6 +154,10 @@ def build_parser() -> argparse.ArgumentParser:
 def run(args: argparse.Namespace) -> int:
     if args.command == "snapshot":
         ensure_outside_git_metadata(args.output)
+        overwrite = bool(getattr(args, "overwrite", False))
+        ensure_output_available(
+            args.output, overwrite=overwrite, label="Baseline output"
+        )
         include = _patterns(args.include)
         mutable = _patterns(args.mutable)
         tags = fetch_remote_tags(args.source)
@@ -163,7 +166,7 @@ def run(args: argparse.Namespace) -> int:
             raise TagLedgerError(
                 "No tags matched the source and include patterns. Check the source/filter or pass --allow-empty if this is intentional."
             )
-        write_baseline(args.output, baseline)
+        write_baseline(args.output, baseline, overwrite=overwrite)
         print(
             f"Recorded {len(baseline['tags'])} tag(s) from {args.source} to {args.output}."
         )
@@ -174,7 +177,12 @@ def run(args: argparse.Namespace) -> int:
         ensure_outside_git_metadata(args.baseline)
     baseline = load_baseline(args.baseline)
     if args.command == "verify":
-        _ensure_report_targets(args.baseline, [args.html, args.sarif, args.json_path])
+        overwrite = bool(getattr(args, "overwrite", False))
+        _ensure_report_targets(
+            args.baseline,
+            [args.html, args.sarif, args.json_path],
+            overwrite=overwrite,
+        )
     source = (
         args.source if args.command == "verify" and args.source else baseline["source"]
     )
@@ -198,17 +206,23 @@ def run(args: argparse.Namespace) -> int:
             baseline.get("include_patterns"),
             baseline.get("mutable_patterns"),
         )
-        write_baseline(args.baseline, replacement)
+        write_baseline(args.baseline, replacement, overwrite=True)
         print(f"Advanced baseline to {len(replacement['tags'])} current tag(s).")
         return 0
 
     if args.html:
-        _write_report(args.html, render_html(report))
+        _write_report(args.html, render_html(report), overwrite=overwrite)
     if args.sarif:
-        _write_report(args.sarif, json.dumps(render_sarif(report), indent=2) + "\n")
+        _write_report(
+            args.sarif,
+            json.dumps(render_sarif(report), indent=2) + "\n",
+            overwrite=overwrite,
+        )
     if args.json_path:
         _write_report(
-            args.json_path, json.dumps(report, ensure_ascii=False, indent=2) + "\n"
+            args.json_path,
+            json.dumps(report, ensure_ascii=False, indent=2) + "\n",
+            overwrite=overwrite,
         )
     print(_text_report(report))
     if args.html:

@@ -24,11 +24,11 @@ It is a local CLI. Remote checks read tag refs only. TagLedger does not checkout
 | Git | Minimum declared version is 2.30; CI does not yet pin and validate that minimum |
 | Runtime | Python standard library and the system Git executable; no third-party Python runtime dependencies |
 | Build | setuptools 77.0.3+ (build time only) |
-| CI targets | GitHub Actions run [#4](https://github.com/furuilon/tagledger/actions/runs/44211475848) passed all 12 Ubuntu/macOS/Windows × Python 3.11–3.14 jobs on commit `9efbcf0d8cea9bc3b384fcdbea370f230298a503`; each job ran 49 tests. See the [Actions page](https://github.com/furuilon/tagledger/actions/workflows/tests.yml) for later commits. Current runners do not validate the declared Git 2.30 minimum. |
+| CI matrix | GitHub Actions runs on Ubuntu/macOS/Windows × Python 3.11–3.14. Check the [Actions page](https://github.com/furuilon/tagledger/actions/workflows/tests.yml) for results on a specific commit. Hosted runners do not validate the declared Git 2.30 minimum. |
 | Package version | 0.1.0 development snapshot; not published to PyPI |
 | License | MIT; see [LICENSE](LICENSE) |
 
-Local verification used Windows build 26200 and Git 2.54.0. The current source tree ran 49 tests on Python 3.11.0: 48 passed and one physical hard-link test was skipped because the sandbox denied link creation. The four Git author/committer identity environment variables were set to empty values for this run, confirming the test fixture supplies its own identity. In the earlier GitHub Actions [run #1](https://github.com/furuilon/tagledger/actions/runs/44197865606), the Ubuntu/Python 3.11 and Ubuntu/Python 3.12 test jobs each ran 48 tests and reported 15 Git integration test failures; their logs show temporary-repository commits failing because the committer identity was empty. The fixture fix was validated by [run #2](https://github.com/furuilon/tagledger/actions/runs/44200405601); each job ran 49 tests. Runs [#3](https://github.com/furuilon/tagledger/actions/runs/44207785546) and [#4](https://github.com/furuilon/tagledger/actions/runs/44211475848) passed all 12 OS/Python combinations on commits `56bc2240d83581cfed91e669455b1f06bc7c48df` and `9efbcf0d8cea9bc3b384fcdbea370f230298a503`, respectively; every job completed installation, CLI smoke checks, `pip check`, and 49 tests. See the [Actions page](https://github.com/furuilon/tagledger/actions/workflows/tests.yml) for later commits. Hosted runners use current Git versions and do **not** validate the declared Git 2.30 minimum. The earlier standalone Python 3.14.2 sdist check covered a previous snapshot. The package is not published to PyPI.
+GitHub Actions runs the matrix above for each commit; use the [Actions page](https://github.com/furuilon/tagledger/actions/workflows/tests.yml) to check the exact commit you plan to use. An earlier Windows/Python 3.11.0 source run had 49 tests: 48 passed and one physical hard-link test was skipped because the environment denied link creation. Hosted runners do not validate the declared Git 2.30 minimum. The current standalone sdist has not been inspected, and the package is not published to PyPI.
 
 ## Install
 
@@ -45,6 +45,8 @@ From a source checkout without installing:
 $env:PYTHONPATH = "src"
 python -m tagledger.cli --help
 ```
+
+By default, `snapshot` and `verify` refuse to replace existing output files. Use `--overwrite` only after checking the destination. `verify --overwrite` still cannot replace the baseline or use colliding report paths. For an existing baseline, prefer the separately confirmed `advance` workflow.
 
 ## Quick start
 
@@ -98,7 +100,7 @@ Exit codes: `0` no error- or warning-level findings (an informational new tag ma
 
 ## Baseline updates
 
-`verify` never writes the baseline. It rejects report paths that alias the baseline, collide with each other, or point inside Git administrative metadata. Baselines and reports use same-directory temporary files followed by atomic replacement. After reviewing a drift report, update the baseline through the normal code-review path, or explicitly run:
+`verify` never writes the baseline. It rejects report paths that alias the baseline, collide with each other, or point inside Git administrative metadata. New outputs refuse existing targets. On filesystems with hard-link support, a same-directory temporary file is linked into place without clobbering; explicit `--overwrite` uses a temporary file and atomic replacement. If hard links are unavailable, the exclusive-create copy fallback can leave a partial new file if interrupted or if copying fails, but it does not replace an existing target. After reviewing a drift report, update the baseline through the normal code-review path, or explicitly run:
 
 ```powershell
 tagledger advance .tagledger/repository.json --yes --accept-changes

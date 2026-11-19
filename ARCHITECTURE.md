@@ -27,9 +27,9 @@ Exact semantic-version-shaped names are classified as `version-like-fixed`. Othe
 
 - `verify` reads the remote refs and baseline without changing either. It may write requested report files. URL and SSH scp-style sources use `git ls-remote` with an explicit HTTP/HTTPS/SSH/Git transport allowlist; local directories use `git for-each-ref`. Filesystem paths are recognized before URL fragments so a local directory name containing `#` remains valid.
 - Git stderr is intentionally omitted from user reports because remote URLs and credential helpers can be sensitive.
-- Baseline writes use a randomly named, exclusively created temporary sibling file and atomic replacement; they do not follow a pre-existing `.tmp` symlink.
+- New baseline and report outputs refuse existing targets by default and publish without clobbering a path that appears during the write. Where hard links are unavailable, an exclusive-create fallback may leave a partial new file if copying is interrupted or fails. `--overwrite` uses a temporary sibling and atomic replacement after the CLI safety checks; it deliberately replaces the requested destination path and does not permit a report to alias its baseline or another report. A pre-existing `.tmp` symlink is not followed.
 - Baselines are validated as a strict version-1 schema before comparison or writing, including non-empty include patterns, tag names, object IDs and tag kind.
-- Verify report destinations are checked against the baseline and each other, including resolved symlink and hard-link aliases, before any report is written.
+- Verify report destinations are checked against the baseline and each other, including resolved symlink and hard-link aliases, before any report is written. Existing report files require `--overwrite`.
 - `advance` requires `--yes`; when fixed-version drift exists it also requires `--accept-changes`.
 - HTML templates escape external values. JSON/SARIF report paths are caller-selected.
 

@@ -15,7 +15,7 @@ A maintainer can query `git ls-remote --tags` and compare text manually, or rely
 3. Apply the same include patterns to baseline and current refs.
 4. Compare names over the union of both sets. Distinguish add/delete, target move, and tag-object-only change.
 5. Classify likely fixed versions versus user-declared mutable aliases and produce stable JSON, SARIF, text, and escaped HTML.
-6. Keep remote refs and the baseline unchanged during verification; requested reports are written as local files. Baseline advancement is a separate command with explicit consent flags.
+6. Keep remote refs and the baseline unchanged during verification; requested reports are written as local files. Existing outputs are refused unless `--overwrite` is explicit, and a concurrent new target is not replaced. Baseline advancement is a separate command with explicit consent flags.
 
 ## Hard parts and code locations
 
@@ -29,7 +29,7 @@ The mechanism deliberately does not claim a cryptographic trust anchor. OIDs ide
 
 ## Correctness evidence
 
-`tests/test_core.py` builds a local bare repository with a lightweight tag and an annotated tag, moves a tag, round-trips a baseline, and runs the snapshot/verify CLI flow. Unit tests also cover malformed and orphan peeled rows, additions/deletions, mutable aliases, OID changes, escaping, SARIF fields, and baseline immutability during verification.
+`tests/test_core.py` builds a local bare repository with a lightweight tag and an annotated tag, moves a tag, round-trips a baseline, and runs the snapshot/verify CLI flow. Unit tests also cover malformed and orphan peeled rows, additions/deletions, mutable aliases, OID changes, escaping, SARIF fields, baseline immutability during verification, existing output preservation and a destination created during the write.
 
 ## Performance
 
