@@ -14,7 +14,7 @@ It is a local CLI. Remote checks read tag refs only. TagLedger does not checkout
 
 **This tool identifies drift; it cannot tell which revision is authentic.** Verify the first baseline through a trusted source before committing it.
 
-简体中文主页：[README.md](README.md) · [架构](ARCHITECTURE.md) · [项目规格](PROJECT_SPEC.md) · [技术机制](TECHNICAL_INNOVATION.md)
+简体中文主页：[README.md](README.md) · [架构](ARCHITECTURE.md) · [项目规格](PROJECT_SPEC.md) · [技术机制](TECHNICAL_INNOVATION.md) · [Changelog](CHANGELOG.md)
 
 ## Stack and support scope
 
@@ -25,7 +25,7 @@ It is a local CLI. Remote checks read tag refs only. TagLedger does not checkout
 | Runtime | Python standard library and the system Git executable; no third-party Python runtime dependencies |
 | Build | setuptools 77.0.3+ (build time only) |
 | CI matrix | GitHub Actions runs on Ubuntu/macOS/Windows × Python 3.11–3.14. Check the [Actions page](https://github.com/furuilon/tagledger/actions/workflows/tests.yml) for results on a specific commit. Hosted runners do not validate the declared Git 2.30 minimum. |
-| Package version | 0.1.0 development snapshot; not published to PyPI |
+| Package version | 0.2.0 development snapshot; not published to PyPI |
 | License | MIT; see [LICENSE](LICENSE) |
 
 GitHub Actions runs the matrix above for each commit; use the [Actions page](https://github.com/furuilon/tagledger/actions/workflows/tests.yml) to check the exact commit you plan to use. An earlier Windows/Python 3.11.0 source run had 49 tests: 48 passed and one physical hard-link test was skipped because the environment denied link creation. Hosted runners do not validate the declared Git 2.30 minimum. The current standalone sdist has not been inspected, and the package is not published to PyPI.
@@ -107,6 +107,14 @@ tagledger advance .tagledger/repository.json --yes --accept-changes
 ```
 
 `--yes` is required for every replacement. `--accept-changes` is additionally required if fixed-version refs moved or disappeared.
+
+If a non-empty baseline would contain no matching tags after advancement, `advance` leaves the existing file unchanged and refuses the update. Add `--allow-empty` only after confirming that clearing the baseline is intentional:
+
+```powershell
+tagledger advance .tagledger/repository.json --yes --accept-changes --allow-empty
+```
+
+`--accept-changes` is needed only for fixed-version drift; `--allow-empty` is needed for an empty result. Neither flag replaces `--yes`.
 
 ## Limits
 

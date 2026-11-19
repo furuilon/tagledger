@@ -14,7 +14,7 @@ TagLedger 为依赖仓库保存一份明确、可审阅的 Git tag 历史基线�
 
 **它能发现漂移，但不能判断哪个版本才是真实可信的版本。** 首次保存基线前，请通过可信渠道核对来源和版本。
 
-English version：[README.en.md](README.en.md) · [项目规格](PROJECT_SPEC.md) · [技术机制](TECHNICAL_INNOVATION.md) · [架构](ARCHITECTURE.md)
+English version：[README.en.md](README.en.md) · [项目规格](PROJECT_SPEC.md) · [技术机制](TECHNICAL_INNOVATION.md) · [架构](ARCHITECTURE.md) · [版本记录](CHANGELOG.md)
 
 ## 技术栈与支持范围
 
@@ -25,7 +25,7 @@ English version：[README.en.md](README.en.md) · [项目规格](PROJECT_SPEC.md
 | 运行时 | Python 标准库与系统 Git；无第三方 Python 运行时依赖 |
 | 构建 | setuptools 77.0.3+（仅构建时需要） |
 | CI 矩阵 | GitHub Actions 在 Ubuntu/macOS/Windows × Python 3.11–3.14 上运行；请查看 [Actions 页面](https://github.com/furuilon/tagledger/actions/workflows/tests.yml)核对具体提交的结果。当前 runner 未验证声明的 Git 2.30 最低版本。 |
-| 包版本 | 0.1.0 开发快照；尚无 PyPI 发布 |
+| 包版本 | 0.2.0 开发快照；尚无 PyPI 发布 |
 | 许可证 | MIT；见 [LICENSE](LICENSE) |
 
 GitHub Actions 会按提交运行上述系统/Python 矩阵；请在 [Actions 页面](https://github.com/furuilon/tagledger/actions/workflows/tests.yml)查看准备使用的具体提交。Windows/Python 3.11.0 的本机测试曾有 49 项：48 项通过、1 项因环境拒绝创建物理硬链接而跳过。托管 runner 没有验证最低声明 Git 2.30；当前独立 sdist 内容尚未复核，项目尚未发布到 PyPI。
@@ -107,6 +107,14 @@ tagledger advance .tagledger/repository.json --yes --accept-changes
 ```
 
 每次替换都必须提供 `--yes`。若固定版本 tag 移动或消失，还必须提供 `--accept-changes`。
+
+若非空基线经过更新后将不再包含任何匹配 tag，`advance` 会保留原基线并拒绝写入。只有确认清空是预期结果时，才额外传入 `--allow-empty`：
+
+```powershell
+tagledger advance .tagledger/repository.json --yes --accept-changes --allow-empty
+```
+
+只有固定版本漂移时才需要 `--accept-changes`；空结果时还需 `--allow-empty`。这两个参数都不会替代 `--yes`。
 
 ## 边界
 

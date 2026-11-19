@@ -1119,6 +1119,80 @@ class GitIntegrationTests(unittest.TestCase):
             self.commit2,
         )
 
+    def test_cli_advance_refuses_to_clear_a_nonempty_baseline_by_default(self) -> None:
+        from argparse import Namespace
+        from tagledger.cli import run
+
+        baseline_path = self.root / "advance-empty-baseline.json"
+        write_baseline(
+            baseline_path,
+            make_baseline(str(self.remote), fetch_remote_tags(str(self.remote))),
+        )
+        original = baseline_path.read_bytes()
+        refs = self.git(
+            "for-each-ref", "--format=%(refname)", "refs/tags", cwd=self.remote
+        ).splitlines()
+        for ref in refs:
+            self.git("update-ref", "-d", ref, cwd=self.remote)
+
+        args = Namespace(
+            command="advance",
+            baseline=str(baseline_path),
+            yes=True,
+            accept_changes=True,
+            allow_empty=False,
+        )
+        with self.assertRaisesRegex(TagLedgerError, "--allow-empty"):
+            run(args)
+        self.assertEqual(baseline_path.read_bytes(), original)
+
+        args.allow_empty = True
+        with redirect_stdout(StringIO()):
+            self.assertEqual(run(args), 0)
+        self.assertEqual(
+            json.loads(baseline_path.read_text(encoding="utf-8"))["tags"], []
+        )
+
+    def test_cli_advance_empty_filter_requires_explicit_allow_empty(self) -> None:
+        from argparse import Namespace
+        from tagledger.cli import run
+
+        baseline_path = self.root / "advance-filtered-empty-baseline.json"
+        initial = make_baseline(
+            str(self.remote),
+            fetch_remote_tags(str(self.remote)),
+            include=["v*"],
+        )
+        write_baseline(baseline_path, initial)
+        original = baseline_path.read_bytes()
+
+        self.git("tag", "preview", self.commit1, cwd=self.remote)
+        refs = self.git(
+            "for-each-ref", "--format=%(refname)", "refs/tags", cwd=self.remote
+        ).splitlines()
+        version_refs = [ref for ref in refs if ref.startswith("refs/tags/v")]
+        for ref in version_refs:
+            self.git("update-ref", "-d", ref, cwd=self.remote)
+        self.assertTrue(version_refs)
+
+        args = Namespace(
+            command="advance",
+            baseline=str(baseline_path),
+            yes=True,
+            accept_changes=True,
+            allow_empty=False,
+        )
+        with self.assertRaisesRegex(TagLedgerError, "--allow-empty"):
+            run(args)
+        self.assertEqual(baseline_path.read_bytes(), original)
+
+        args.allow_empty = True
+        with redirect_stdout(StringIO()):
+            self.assertEqual(run(args), 0)
+        self.assertEqual(
+            json.loads(baseline_path.read_text(encoding="utf-8"))["tags"], []
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

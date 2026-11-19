@@ -147,6 +147,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="allow advancement despite fixed-version drift",
     )
+    advance.add_argument(
+        "--allow-empty",
+        action="store_true",
+        help="allow replacing a non-empty baseline when no tags match",
+    )
 
     return parser
 
@@ -206,6 +211,14 @@ def run(args: argparse.Namespace) -> int:
             baseline.get("include_patterns"),
             baseline.get("mutable_patterns"),
         )
+        if (
+            baseline["tags"]
+            and not replacement["tags"]
+            and not getattr(args, "allow_empty", False)
+        ):
+            raise TagLedgerError(
+                "Advancement would remove every recorded tag. The existing baseline was left unchanged; pass --allow-empty only if this empty baseline is intentional."
+            )
         write_baseline(args.baseline, replacement, overwrite=True)
         print(f"Advanced baseline to {len(replacement['tags'])} current tag(s).")
         return 0

@@ -30,7 +30,7 @@ Exact semantic-version-shaped names are classified as `version-like-fixed`. Othe
 - New baseline and report outputs refuse existing targets by default and publish without clobbering a path that appears during the write. Where hard links are unavailable, an exclusive-create fallback may leave a partial new file if copying is interrupted or fails. `--overwrite` uses a temporary sibling and atomic replacement after the CLI safety checks; it deliberately replaces the requested destination path and does not permit a report to alias its baseline or another report. A pre-existing `.tmp` symlink is not followed.
 - Baselines are validated as a strict version-1 schema before comparison or writing, including non-empty include patterns, tag names, object IDs and tag kind.
 - Verify report destinations are checked against the baseline and each other, including resolved symlink and hard-link aliases, before any report is written. Existing report files require `--overwrite`.
-- `advance` requires `--yes`; when fixed-version drift exists it also requires `--accept-changes`.
+- `advance` requires `--yes`; fixed-version drift requires `--accept-changes`, and replacing a non-empty baseline with zero matching tags requires `--allow-empty`.
 - HTML templates escape external values. JSON/SARIF report paths are caller-selected.
 
 ## Trust boundary
